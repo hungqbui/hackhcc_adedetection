@@ -1,121 +1,63 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+import React from 'react'
+import SplashCursor from './components/SplashCursor'
+import AnimatedContent from './components/AnimatedContent'
+import StarBorder from './components/StarBorder'
+import ElectricBorder from './components/ElectricBorder'
 
 function App() {
-  const [count, setCount] = useState(0)
-
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
+    <div className="relative min-h-screen bg-slate-950 text-white overflow-hidden flex flex-col font-sans">
+      <SplashCursor />
+      
+      <main className="flex-1 flex flex-col items-center justify-center p-8 z-10 relative">
+        <AnimatedContent
+          distance={150}
+          direction="vertical"
+          reverse={false}
+          ease="elastic.out(1, 0.5)"
+          duration={1.5}
+          initialOpacity={0.2}
+          animateOpacity
+          scale={0.9}
         >
-          Count is {count}
-        </button>
-      </section>
+          <div className="text-center mb-12 flex flex-col items-center">
+            <h1 className="text-5xl md:text-7xl font-bold mb-6 tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-600">
+              Welcome to the Future
+            </h1>
+            <p className="text-xl md:text-2xl text-slate-400 max-w-2xl text-center">
+              We are building the next generation of interactive web experiences. 
+              Powered by generic interactive components and React Bits.
+            </p>
+          </div>
+        </AnimatedContent>
 
-      <div className="ticks"></div>
+        <AnimatedContent delay={0.5} distance={100} direction="vertical">
+          <div className="flex flex-col sm:flex-row gap-6 items-center">
+            <StarBorder as="button" color="cyan" speed="4s" className="px-8 py-4 text-lg font-semibold bg-slate-900 rounded-lg hover:bg-slate-800 transition-colors">
+              Get Started
+            </StarBorder>
+            
+            <ElectricBorder>
+              <button className="px-8 py-4 text-lg font-semibold bg-indigo-950/50 rounded-lg hover:bg-indigo-900/50 transition-colors text-indigo-300">
+                View Documentation
+              </button>
+            </ElectricBorder>
+          </div>
+        </AnimatedContent>
+        
+        <AnimatedContent delay={1} distance={50} direction="vertical">
+             <div className="mt-24 grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl">
+                {[1, 2, 3].map((item) => (
+                    <div key={item} className="p-6 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm">
+                        <h3 className="text-xl font-semibold mb-3 text-purple-300">Feature {item}</h3>
+                        <p className="text-slate-400">Discover amazing capabilities built right into the platform. Interactive, fast, and beautiful.</p>
+                    </div>
+                ))}
+             </div>
+        </AnimatedContent>
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+      </main>
+    </div>
   )
 }
 
