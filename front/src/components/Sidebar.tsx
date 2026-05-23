@@ -16,8 +16,7 @@ import type { LucideIcon } from 'lucide-react'
 import type { View, Medication } from '../App'
 import { useEffect, useRef } from 'react'
 import { gsap } from 'gsap'
-import GooeyNav from './GooeyNav'
-import './SidebarGooey.css'
+import ElectricBorder from './react-bits/ElectricBorder'
 
 interface SidebarProps {
   collapsed: boolean
@@ -59,30 +58,6 @@ export default function Sidebar({
     }
   }, [collapsed])
 
-  // Convert navItems to GooeyNav items
-  const gooeyNavItems = navItems.map(item => {
-    const Icon = item.icon
-    return {
-      label: (
-        <span className={`flex items-center gap-3 w-full ${collapsed ? 'justify-center' : ''}`}>
-          <Icon size={18} className="flex-shrink-0" />
-          {!collapsed && (
-            <span className="sidebar-label font-medium text-sm whitespace-nowrap block origin-left">
-              {item.label}
-            </span>
-          )}
-        </span>
-      ),
-      href: `#${item.view}`,
-      onClick: (e: React.MouseEvent) => {
-        e.preventDefault();
-        onNavigate(item.view);
-      }
-    }
-  });
-
-  const activeIndex = navItems.findIndex(item => item.view === activeView);
-
   return (
     <aside
       ref={sidebarRef}
@@ -123,15 +98,63 @@ export default function Sidebar({
       )}
 
       {/* Navigation Items */}
-      <nav className={`flex-1 py-4 space-y-1 overflow-x-hidden overflow-y-auto sidebar-gooey-wrapper ${collapsed ? '' : 'px-3'}`}>
+      <nav className={`flex-1 py-4 space-y-1.5 overflow-x-hidden overflow-y-auto ${collapsed ? 'px-2' : 'px-3'}`}>
         {!collapsed && (
           <p className="sidebar-label text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 px-2 pb-1 origin-left">
             Navigation
           </p>
         )}
-        <div className={collapsed ? 'collapsed-nav' : ''}>
-          <GooeyNav items={gooeyNavItems} orientation="vertical" initialActiveIndex={activeIndex} />
-        </div>
+        {navItems.map((item) => {
+          const Icon = item.icon
+          const isActive = activeView === item.view
+
+          const buttonContent = (
+            <button
+              onClick={() => onNavigate(item.view)}
+              title={collapsed ? item.label : undefined}
+              className={`w-full flex items-center gap-3 rounded-xl transition-all duration-200 group text-left ${
+                collapsed ? 'justify-center p-2.5' : 'px-3 py-2.5'
+              } ${
+                isActive
+                  ? 'text-blue-600 dark:text-blue-400 font-bold bg-blue-50/80 dark:bg-blue-600/10'
+                  : 'hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white'
+              }`}
+            >
+              <Icon
+                size={18}
+                className={`flex-shrink-0 transition-transform duration-200 group-hover:scale-105 ${
+                  isActive ? 'text-blue-600 dark:text-blue-400' : ''
+                }`}
+              />
+              {!collapsed && (
+                <span className="sidebar-label font-medium text-sm whitespace-nowrap block origin-left">
+                  {item.label}
+                </span>
+              )}
+            </button>
+          )
+
+          if (isActive) {
+            return (
+              <ElectricBorder
+                key={item.view}
+                borderRadius={12}
+                color="#3b82f6"
+                speed={2}
+                chaos={0.1}
+                className="w-full rounded-xl overflow-hidden shadow-sm animate-in fade-in duration-200"
+              >
+                {buttonContent}
+              </ElectricBorder>
+            )
+          }
+
+          return (
+            <div key={item.view} className="w-full">
+              {buttonContent}
+            </div>
+          )
+        })}
       </nav>
 
       {/* Footer */}
