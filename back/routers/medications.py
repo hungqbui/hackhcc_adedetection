@@ -11,6 +11,7 @@ from bson import ObjectId
 from auth import get_current_user
 from models import MedicationCreate, MedicationInDB, MedicationResponse, GenerateScheduleRequest, GeneratedMasterSchedule, SchedulePersistRequest, ScheduleResponse, DailyActionPlanEntry
 from database import medication_collection, schedule_collection, action_plan_collection
+from scheduler import send_discord_reminder
 
 router = APIRouter(prefix="/medications", tags=["medications"])
 
@@ -203,6 +204,23 @@ async def get_user_schedule(
         general_advice=schedule["general_advice"],
         updated_at=schedule["updated_at"]
     )
+
+@router.post("/schedule/demo-reminder")
+async def trigger_demo_reminder(
+    current_user: dict = Depends(get_current_user)
+):
+    schedule = await schedule_collection.find_one({"username": current_user["username"]})
+    if schedule and schedule.get("slots"):
+        slot = schedule["slots"][0]
+    else:
+        slot = {
+            "time": "08:00",
+            "medication_names": ["Test Medication 10mg", "Supplement 500mg"],
+            "instructions": "Take with breakfast.",
+            "interaction_warnings": "This is a demonstration reminder."
+        }
+    await send_discord_reminder(current_user["username"], slot)
+    return {"status": "success", "message": "Demo reminder sent!"}
 
 @router.post("/scan", response_model=MedicationResponse)
 async def scan_medication(

@@ -200,6 +200,24 @@ interface DashboardMainProps {
 export default function DashboardMain({ onNavigate, medications, onFetchMeds }: DashboardMainProps) {
   const [doses, setDoses] = useState<TodayDose[]>([])
   const [selectedMed, setSelectedMed] = useState<Medication | null>(null)
+  const [demoSending, setDemoSending] = useState(false)
+  const [demoStatus, setDemoStatus] = useState<'idle' | 'success' | 'error'>('idle')
+
+  const triggerDemo = async () => {
+    setDemoSending(true)
+    setDemoStatus('idle')
+    try {
+      await medeaseApi.medications.triggerDemoReminder()
+      setDemoStatus('success')
+      setTimeout(() => setDemoStatus('idle'), 3000)
+    } catch (err) {
+      console.error(err)
+      setDemoStatus('error')
+      setTimeout(() => setDemoStatus('idle'), 3500)
+    } finally {
+      setDemoSending(false)
+    }
+  }
 
   const now = new Date()
   const currentMinutes = now.getHours() * 60 + now.getMinutes()
@@ -405,7 +423,23 @@ export default function DashboardMain({ onNavigate, medications, onFetchMeds }: 
       {/* ── TODAY'S VERTICAL TIMELINE ────────────────────────── */}
       <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm p-6">
         <div className="flex items-center justify-between mb-5">
-          <h2 className="font-extrabold text-slate-900 dark:text-white text-lg">Today's Schedule</h2>
+          <div className="flex items-center gap-3">
+            <h2 className="font-extrabold text-slate-900 dark:text-white text-lg">Today's Schedule</h2>
+            <button
+              onClick={triggerDemo}
+              disabled={demoSending}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold rounded-lg border transition-all shadow-sm ${
+                demoStatus === 'success'
+                  ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/25'
+                  : demoStatus === 'error'
+                  ? 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 border-red-200 dark:border-red-500/25'
+                  : 'bg-indigo-50/70 hover:bg-indigo-100 dark:bg-indigo-500/10 dark:hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 border-indigo-200/50 dark:border-indigo-500/15'
+              }`}
+            >
+              <Sparkles size={11} className={demoSending ? "animate-spin" : ""} />
+              {demoSending ? 'Sending Alert...' : demoStatus === 'success' ? 'Alert Sent!' : demoStatus === 'error' ? 'Failed' : 'Send Demo Reminder'}
+            </button>
+          </div>
           <button
             onClick={() => onNavigate('generator')}
             className="flex items-center gap-1 text-xs font-semibold text-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"

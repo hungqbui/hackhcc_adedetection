@@ -8,15 +8,21 @@ class UserCreate(BaseModel):
     username: str = Field(..., min_length=3, max_length=50)
     email: str
     password: str = Field(..., min_length=6)
+    webhook_url: Optional[str] = None
 
 class UserInDB(BaseModel):
     username: str
     email: str
     hashed_password: str
+    webhook_url: Optional[str] = None
 
 class UserResponse(BaseModel):
     username: str
     email: str
+    webhook_url: Optional[str] = None
+
+class UserUpdate(BaseModel):
+    webhook_url: Optional[str] = None
 
 class Token(BaseModel):
     access_token: str

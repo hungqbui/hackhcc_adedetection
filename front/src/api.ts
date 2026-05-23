@@ -164,6 +164,17 @@ export const medeaseApi = {
 
     logout: () => {
       removeAuthToken();
+    },
+    getProfile: async (): Promise<{ username: string; email: string; webhook_url?: string }> => {
+      return apiRequest<{ username: string; email: string; webhook_url?: string }>('/auth/me', {
+        method: 'GET',
+      });
+    },
+    updateProfile: async (webhookUrl: string): Promise<{ username: string; email: string; webhook_url?: string }> => {
+      return apiRequest<{ username: string; email: string; webhook_url?: string }>('/auth/me', {
+        method: 'PUT',
+        body: JSON.stringify({ webhook_url: webhookUrl }),
+      });
     }
   },
 
@@ -264,6 +275,11 @@ export const medeaseApi = {
     // Retrieve all DailyActionPlanEntry records for history calendar
     getHistory: async (): Promise<DailyActionPlanEntry[]> => {
       return apiRequest<DailyActionPlanEntry[]>('/medications/history');
+    },
+    triggerDemoReminder: async (): Promise<{ status: string; message: string }> => {
+      return apiRequest<{ status: string; message: string }>('/medications/schedule/demo-reminder', {
+        method: 'POST',
+      });
     }
   },
 

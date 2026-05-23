@@ -1,12 +1,20 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
+from contextlib import asynccontextmanager
 
 load_dotenv()
 
 from routers import auth, medications, chat
+from scheduler import start_scheduler, stop_scheduler
 
-app = FastAPI(title="HackHCC API", version="1.0.0")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    start_scheduler()
+    yield
+    stop_scheduler()
+
+app = FastAPI(title="HackHCC API", version="1.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
