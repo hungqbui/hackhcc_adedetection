@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   CheckCircle2,
   Clock,
@@ -35,6 +35,7 @@ interface Medication {
   whenToAvoid?: string
   foodInteractions?: string
   simplifiedExplanation?: string
+  times?: string[]
 }
 
 interface TodayDose {
@@ -94,8 +95,6 @@ function buildTodaySchedule(medications: Medication[], takenIds: string[]): Toda
   const doses: TodayDose[] = []
 
   medications.forEach(med => {
-    const freq = med.frequency.toLowerCase()
-
     const addDose = (slot: { time: string; label: string }) => {
       const id = `${med.id}-${slot.time}`
       const [h, m] = slot.time.split(':').map(Number)
@@ -120,6 +119,20 @@ function buildTodaySchedule(medications: Medication[], takenIds: string[]): Toda
         riskLevel: med.riskLevel
       })
     }
+
+    if (med.times && med.times.length > 0) {
+      med.times.forEach(t => {
+        const [h, m] = t.split(':').map(Number)
+        const ampm = h >= 12 ? 'PM' : 'AM'
+        const hour = h % 12 || 12
+        const label = `${hour}:${m.toString().padStart(2, '0')} ${ampm}`
+        
+        addDose({ time: t, label })
+      })
+      return
+    }
+
+    const freq = med.frequency.toLowerCase()
 
     if (freq.includes('every 8 hours')) {
       addDose(timeMap.morning[0])
@@ -155,6 +168,10 @@ interface DashboardMainProps {
 export default function DashboardMain({ onNavigate, medications, onFetchMeds }: DashboardMainProps) {
   const [doses, setDoses] = useState<TodayDose[]>([])
   const [selectedMed, setSelectedMed] = useState<Medication | null>(null)
+  
+  const now = new Date()
+  const currentMinutes = now.getHours() * 60 + now.getMinutes()
+  const currentTimeStr = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
   const [medPage, setMedPage] = useState(1)
   const medsPerPage = 5
   const totalMedPages = Math.max(1, Math.ceil(medications.length / medsPerPage))
@@ -341,51 +358,85 @@ export default function DashboardMain({ onNavigate, medications, onFetchMeds }: 
                 missed: { dot: 'bg-red-500', badge: 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 border-red-200 dark:border-red-500/20', label: 'Missed' },
               }[dose.status]
 
+              const doseMinutes = parseInt(dose.time.split(':')[0]) * 60 + parseInt(dose.time.split(':')[1])
+              const prevDose = idx > 0 ? doses[idx - 1] : null
+              const prevDoseMinutes = prevDose ? parseInt(prevDose.time.split(':')[0]) * 60 + parseInt(prevDose.time.split(':')[1]) : -1
+              
+              const showCurrentTimeBefore = currentMinutes >= prevDoseMinutes && currentMinutes < doseMinutes
+
               return (
-                <li key={dose.id} className={`ml-6 ${isLast ? 'pb-0' : 'pb-5'}`}>
-                  {/* Timeline dot */}
-                  <span className={`absolute -left-[9px] w-4 h-4 rounded-full border-2 border-white dark:border-slate-900 ${statusConfig.dot}`}></span>
-                  <div
-                    onClick={() => {
-                      const med = medications.find(m => m.id === dose.medId)
-                      if (med) setSelectedMed(med)
-                    }}
-                    className="cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl bg-slate-50/60 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
-                  >
-                    <div className="flex items-start gap-3 min-w-0">
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs font-bold text-slate-500 dark:text-slate-400">{dose.label}</p>
-                        <p className="font-bold text-slate-900 dark:text-white text-base mt-0.5 flex flex-wrap items-center gap-1.5">
-                          <span className="break-words">{dose.name}</span>
-                          <span className="text-[9px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 px-1.5 py-0.5 rounded border border-blue-200 dark:border-blue-500/20 flex items-center gap-0.5 flex-shrink-0">
-                            <Sparkles size={8} /> AI Insight
-                          </span>
-                        </p>
-                        <p className="text-xs text-slate-500 mt-0.5 break-words whitespace-normal">
-                          {dose.dosage} • <span className="font-semibold text-slate-600 dark:text-slate-400">{dose.purpose}</span>
-                        </p>
+                <React.Fragment key={dose.id}>
+                  {showCurrentTimeBefore && (
+                    <li className="relative ml-6 pb-5">
+                      <span className="absolute -left-[10px] w-5 h-5 rounded-full bg-slate-100 dark:bg-slate-800 border-2 border-white dark:border-slate-900 flex items-center justify-center">
+                         <div className="w-2 h-2 rounded-full bg-slate-400"></div>
+                      </span>
+                      <div className="flex items-center gap-3 pt-1">
+                        <div className="h-px bg-slate-200 dark:bg-slate-700 flex-1 border-dashed"></div>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{currentTimeStr} - NOW</span>
+                        <div className="h-px bg-slate-200 dark:bg-slate-700 flex-[3] border-dashed"></div>
+                      </div>
+                    </li>
+                  )}
+                  <li className={`ml-6 ${isLast ? 'pb-0' : 'pb-5'}`}>
+                    {/* Timeline dot */}
+                    <span className={`absolute -left-[9px] w-4 h-4 rounded-full border-2 border-white dark:border-slate-900 ${statusConfig.dot}`}></span>
+                    <div
+                      onClick={() => {
+                        const med = medications.find(m => m.id === dose.medId)
+                        if (med) setSelectedMed(med)
+                      }}
+                      className="cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl bg-slate-50/60 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                    >
+                      <div className="flex items-start gap-3 min-w-0">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-bold text-slate-500 dark:text-slate-400">{dose.label}</p>
+                          <p className="font-bold text-slate-900 dark:text-white text-base mt-0.5 flex flex-wrap items-center gap-1.5">
+                            <span className="break-words">{dose.name}</span>
+                            <span className="text-[9px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 px-1.5 py-0.5 rounded border border-blue-200 dark:border-blue-500/20 flex items-center gap-0.5 flex-shrink-0">
+                              <Sparkles size={8} /> AI Insight
+                            </span>
+                          </p>
+                          <p className="text-xs text-slate-500 mt-0.5 break-words whitespace-normal">
+                            {dose.dosage} • <span className="font-semibold text-slate-600 dark:text-slate-400">{dose.purpose}</span>
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2.5 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold border ${statusConfig.badge}`}>
+                          {dose.status === 'taken' && <CheckCircle2 size={11} />}
+                          {dose.status === 'missed' && <AlertTriangle size={11} />}
+                          {dose.status === 'upcoming' && <Clock size={11} />}
+                          {statusConfig.label}
+                        </span>
+                        {dose.status !== 'taken' && (
+                          <button
+                            onClick={() => markTaken(dose.id)}
+                            className="px-3 py-1.5 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors shadow-sm shadow-blue-500/20"
+                          >
+                            Mark taken
+                          </button>
+                        )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2.5 flex-shrink-0" onClick={e => e.stopPropagation()}>
-                      <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold border ${statusConfig.badge}`}>
-                        {dose.status === 'taken' && <CheckCircle2 size={11} />}
-                        {dose.status === 'missed' && <AlertTriangle size={11} />}
-                        {dose.status === 'upcoming' && <Clock size={11} />}
-                        {statusConfig.label}
-                      </span>
-                      {dose.status !== 'taken' && (
-                        <button
-                          onClick={() => markTaken(dose.id)}
-                          className="px-3 py-1.5 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors shadow-sm shadow-blue-500/20"
-                        >
-                          Mark taken
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </li>
+                  </li>
+                </React.Fragment>
               )
             })}
+            
+            {/* Show Current Time at the very end if it's past the last dose */}
+            {doses.length > 0 && currentMinutes >= (parseInt(doses[doses.length-1].time.split(':')[0]) * 60 + parseInt(doses[doses.length-1].time.split(':')[1])) && (
+              <li className="relative ml-6 pt-5">
+                <span className="absolute -left-[10px] w-5 h-5 rounded-full bg-slate-100 dark:bg-slate-800 border-2 border-white dark:border-slate-900 flex items-center justify-center mt-[-10px]">
+                   <div className="w-2 h-2 rounded-full bg-slate-400"></div>
+                </span>
+                <div className="flex items-center gap-3">
+                  <div className="h-px bg-slate-200 dark:bg-slate-700 flex-1 border-dashed"></div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{currentTimeStr} - NOW</span>
+                  <div className="h-px bg-slate-200 dark:bg-slate-700 flex-[3] border-dashed"></div>
+                </div>
+              </li>
+            )}
           </ol>
         )}
       </div>

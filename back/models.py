@@ -128,3 +128,12 @@ class GenerateScheduleRequest(BaseModel):
     dinner_time: str
     routine_notes: Optional[str] = None
 
+class SchedulePersistRequest(BaseModel):
+    slots: List[ScheduleTimeSlot]
+    general_advice: str
+
+class ScheduleResponse(BaseModel):
+    slots: List[ScheduleTimeSlot]
+    general_advice: str
+    updated_at: datetime
+

@@ -220,6 +220,27 @@ export const medeaseApi = {
           routine_notes: routineNotes
         }),
       });
+    },
+
+    // Persist a daily schedule in MongoDB
+    persistSchedule: async (slots: ScheduleTimeSlot[], generalAdvice: string): Promise<GeneratedMasterSchedule & { updated_at: string }> => {
+      return apiRequest<GeneratedMasterSchedule & { updated_at: string }>('/medications/schedule', {
+        method: 'POST',
+        body: JSON.stringify({ slots, general_advice: generalAdvice }),
+      });
+    },
+
+    // Get the persisted schedule from MongoDB
+    getPersistedSchedule: async (): Promise<GeneratedMasterSchedule & { updated_at: string }> => {
+      return apiRequest<GeneratedMasterSchedule & { updated_at: string }>('/medications/schedule');
+    },
+
+    // Update optimal_time for a specific medication
+    updateTimes: async (medicationId: string, times: string[]): Promise<MedicationResponse> => {
+      return apiRequest<MedicationResponse>(`/medications/${medicationId}/times`, {
+        method: 'PUT',
+        body: JSON.stringify(times),
+      });
     }
   },
 
