@@ -26,7 +26,7 @@ export default function ProfileView({ user, onLogout, onNavigate }: ProfileViewP
           <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
             Patient Profile
           </h1>
-          <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
+          <p className="text-slate-700 dark:text-slate-400 text-md mt-1">
             Review your medical identity credentials and active emergency parameters.
           </p>
         </div>

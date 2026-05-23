@@ -4,12 +4,11 @@ import {
   CheckCircle2,
   XCircle,
   AlertCircle,
-  ChevronLeft,
-  ChevronRight,
   TrendingUp,
   Award
 } from 'lucide-react'
 import SpotlightCard from './react-bits/SpotlightCard'
+import { medeaseApi } from '../api'
 
 type DayStatus = 'fully-taken' | 'partially-taken' | 'missed' | 'future'
 
@@ -23,32 +22,148 @@ interface AdherenceDay {
 
 const WEEK_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
-// May 1 2026 is a Friday → 5 empty leading cells
-const LEAD_CELLS = 5
-
-function buildMonthData(): AdherenceDay[] {
-  const today = 22 // Simulated "today" = May 22, 2026
-  return Array.from({ length: 31 }, (_, i) => {
-    const d = i + 1
-    if (d > today) return { dayNum: d, date: `2026-05-${d.toString().padStart(2,'0')}`, status: 'future', takenCount: 0, totalScheduled: 0 }
-    const totalScheduled = 2 + (d % 2)
-    if ([5, 12, 19].includes(d)) return { dayNum: d, date: `2026-05-${d.toString().padStart(2,'0')}`, status: 'missed', takenCount: 0, totalScheduled }
-    if ([8, 15].includes(d)) return { dayNum: d, date: `2026-05-${d.toString().padStart(2,'0')}`, status: 'partially-taken', takenCount: 1, totalScheduled }
-    return { dayNum: d, date: `2026-05-${d.toString().padStart(2,'0')}`, status: 'fully-taken', takenCount: totalScheduled, totalScheduled }
-  })
-}
-
-const WEEKLY_DATA = [
-  { label: 'Week 1', taken: 13, missed: 1 },
-  { label: 'Week 2', taken: 10, missed: 4 },
-  { label: 'Week 3', taken: 12, missed: 2 },
-  { label: 'Week 4 (current)', taken: 9, missed: 1 },
-]
-
 export default function MedicationHistory() {
   const [days, setDays] = useState<AdherenceDay[]>([])
+  const [leadCells, setLeadCells] = useState(0)
+  const [monthLabel, setMonthLabel] = useState('')
+  const [weeklyData, setWeeklyData] = useState<{ label: string; taken: number; missed: number }[]>([])
+  const [loading, setLoading] = useState(true)
 
-  useEffect(() => { setDays(buildMonthData()) }, [])
+  useEffect(() => {
+    const loadHistoryData = async () => {
+      setLoading(true)
+      try {
+        const now = new Date()
+        const year = now.getFullYear()
+        const month = now.getMonth() // 0-indexed
+        
+        const firstDay = new Date(year, month, 1)
+        const cells = firstDay.getDay() // day of week for 1st
+        setLeadCells(cells)
+        
+        const label = now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+        setMonthLabel(label)
+
+        // 1. Fetch active meds
+        const meds = await medeaseApi.medications.list()
+        
+        // 2. Fetch persisted schedule
+        let totalScheduledDoses = 0
+        try {
+          const schedule = await medeaseApi.medications.getPersistedSchedule()
+          if (schedule && schedule.slots && schedule.slots.length > 0) {
+            totalScheduledDoses = schedule.slots.reduce((acc, slot) => acc + slot.medication_names.length, 0)
+          }
+        } catch {
+          // fallback to active meds count
+          meds.forEach(med => {
+            if (med.optimal_time && med.optimal_time.length > 0) {
+              totalScheduledDoses += med.optimal_time.length
+            } else if (med.reminder_times && med.reminder_times.length > 0) {
+              totalScheduledDoses += med.reminder_times.length
+            } else {
+              totalScheduledDoses += 1
+            }
+          })
+        }
+
+        // 3. Fetch logged history entries
+        const historyEntries = await medeaseApi.medications.getHistory()
+
+        // 4. Build calendar days
+        const daysInMonth = new Date(year, month + 1, 0).getDate()
+        const todayDayNum = now.getDate()
+
+        const calculatedDays: AdherenceDay[] = Array.from({ length: daysInMonth }, (_, i) => {
+          const d = i + 1
+          const dateStr = `${year}-${(month + 1).toString().padStart(2, '0')}-${d.toString().padStart(2, '0')}`
+          
+          if (d > todayDayNum) {
+            return {
+              dayNum: d,
+              date: dateStr,
+              status: 'future',
+              takenCount: 0,
+              totalScheduled: 0
+            }
+          }
+
+          // Count taken on this day
+          const takenOnDay = historyEntries.filter(entry => {
+            try {
+              const entryDate = new Date(entry.scheduled_time).toISOString().split('T')[0]
+              return entryDate === dateStr && entry.status === 'taken'
+            } catch {
+              return false
+            }
+          })
+
+          const takenCount = takenOnDay.length
+          const totalScheduled = totalScheduledDoses
+
+          let status: DayStatus = 'missed'
+          if (totalScheduled === 0) {
+            status = 'future'
+          } else if (takenCount === totalScheduled) {
+            status = 'fully-taken'
+          } else if (takenCount > 0) {
+            status = 'partially-taken'
+          }
+
+          return {
+            dayNum: d,
+            date: dateStr,
+            status,
+            takenCount,
+            totalScheduled
+          }
+        })
+
+        setDays(calculatedDays)
+
+        // 5. Compute weekly data
+        const weeks = [
+          { label: 'Week 1', start: 1, end: 7 },
+          { label: 'Week 2', start: 8, end: 14 },
+          { label: 'Week 3', start: 15, end: 21 },
+          { label: 'Week 4', start: 22, end: 28 }
+        ]
+        if (daysInMonth > 28) {
+          weeks.push({ label: 'Week 5', start: 29, end: daysInMonth })
+        }
+
+        const computedWeeks = weeks.map(w => {
+          const weekDays = calculatedDays.filter(d => d.dayNum >= w.start && d.dayNum <= w.end && d.status !== 'future')
+          const taken = weekDays.reduce((acc, d) => acc + d.takenCount, 0)
+          const total = weekDays.reduce((acc, d) => acc + d.totalScheduled, 0)
+          const missed = Math.max(0, total - taken)
+          const isCurrent = todayDayNum >= w.start && todayDayNum <= w.end
+          return {
+            label: `${w.label}${isCurrent ? ' (current)' : ''}`,
+            taken,
+            missed
+          }
+        })
+
+        setWeeklyData(computedWeeks)
+      } catch (err) {
+        console.error("Failed to load history data:", err)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadHistoryData()
+  }, [])
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] text-slate-500">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500 mb-4"></div>
+        <p className="font-semibold text-sm">Loading historical logs...</p>
+      </div>
+    )
+  }
 
   const past = days.filter(d => d.status !== 'future')
   const totalTaken = past.reduce((s, d) => s + d.takenCount, 0)
@@ -98,9 +213,7 @@ export default function MedicationHistory() {
           <div className="flex items-center justify-between mb-5">
             <h2 className="font-extrabold text-slate-900 dark:text-white text-base">Adherence Calendar</h2>
             <div className="flex items-center gap-1">
-              <button className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 transition-colors"><ChevronLeft size={15} /></button>
-              <span className="text-sm font-bold text-slate-700 dark:text-slate-200 px-2">May 2026</span>
-              <button className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 transition-colors"><ChevronRight size={15} /></button>
+              <span className="text-sm font-bold text-slate-700 dark:text-slate-200 px-2">{monthLabel}</span>
             </div>
           </div>
 
@@ -111,7 +224,7 @@ export default function MedicationHistory() {
           </div>
 
           <div className="grid grid-cols-7 gap-2">
-            {Array(LEAD_CELLS).fill(null).map((_, i) => (
+            {Array(leadCells).fill(null).map((_, i) => (
               <div key={`e${i}`} className="aspect-square rounded-xl bg-transparent border border-transparent" />
             ))}
             {days.map(day => {
@@ -169,9 +282,9 @@ export default function MedicationHistory() {
           </h2>
 
           <div className="space-y-5">
-            {WEEKLY_DATA.map(week => {
+            {weeklyData.map(week => {
               const total = week.taken + week.missed
-              const takenPct = Math.round((week.taken / total) * 100)
+              const takenPct = total > 0 ? Math.round((week.taken / total) * 100) : 0
               const missedPct = 100 - takenPct
               return (
                 <div key={week.label} className="space-y-1.5">
@@ -207,7 +320,7 @@ export default function MedicationHistory() {
               <span className="text-xs font-bold uppercase tracking-wider">Clinical Insight</span>
             </div>
             <p className="text-slate-600 dark:text-slate-400 text-xs leading-relaxed">
-              Your adherence is strongest in the <strong>morning (96%)</strong> and weakest at <strong>bedtime (74%)</strong>. Consider setting a bedtime reminder to improve overall compliance.
+              Your adherence stats are dynamically generated from your active medication plans and logged intake behavior. Track daily logs to generate automated warnings and spacing advice.
             </p>
           </div>
         </div>

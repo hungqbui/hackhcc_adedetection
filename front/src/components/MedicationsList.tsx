@@ -21,7 +21,7 @@ export default function MedicationsList({
           <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
             Active Medications & Supplements
           </h1>
-          <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
+          <p className="text-slate-700 dark:text-slate-400 text-sm mt-1">
             View, inspect, and manage all your registered prescriptions, over-the-counter drugs, and supplements.
           </p>
         </div>
@@ -69,7 +69,7 @@ export default function MedicationsList({
                       ? 'rgba(245, 158, 11, 0.08)'
                       : 'rgba(16, 185, 129, 0.08)'
                 }
-                className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-850 rounded-2xl p-5 shadow-sm hover:shadow-md flex flex-col justify-between min-h-[380px] transition-all group relative overflow-hidden"
+                className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-850 rounded-2xl p-1 shadow-sm hover:shadow-md flex flex-col justify-between min-h-[380px] transition-all group relative overflow-hidden"
               >
                 <div className="space-y-4">
                   {/* Top Badge Row */}
@@ -92,12 +92,12 @@ export default function MedicationsList({
 
                   {/* Header Title + Dosage */}
                   <div>
-                    <h2 className="text-xl font-extrabold text-slate-900 dark:text-white truncate flex items-center gap-2">
+                    <h2 className="text-sm font-extrabold text-slate-900 dark:text-white truncate flex items-center gap-2">
                       {med.name}
-                      <span className="text-xs font-semibold text-slate-400 dark:text-slate-500">
-                        ({med.dosage})
-                      </span>
                     </h2>
+                    <p className="text-xs text-slate-500 font-bold uppercase tracking-wider mt-1">
+                      {med.dosage}
+                    </p>
                     <p className="text-xs text-blue-500 font-bold uppercase tracking-wider mt-1">
                       {med.purpose || 'General Health'}
                     </p>

@@ -10,6 +10,7 @@ import type { View } from '../App'
 
 interface DailyPlanGeneratorProps {
   onNavigate?: (view: View) => void
+  onSchedulePersisted?: () => void
 }
 
 interface Medication {
@@ -76,7 +77,7 @@ function mapBackendScheduleToDoses(
   return doses.sort((a, b) => a.time.localeCompare(b.time))
 }
 
-export default function DailyPlanGenerator({ onNavigate }: DailyPlanGeneratorProps) {
+export default function DailyPlanGenerator({ onNavigate, onSchedulePersisted }: DailyPlanGeneratorProps) {
   const [medications, setMedications] = useState<Medication[]>([])
   const [selectedMedIds, setSelectedMedIds] = useState<string[]>([])
   const [wakeTime, setWakeTime] = useState('07:00')
@@ -93,7 +94,7 @@ export default function DailyPlanGenerator({ onNavigate }: DailyPlanGeneratorPro
   const [error, setError] = useState<string | null>(null)
 
   const today = new Date().toISOString().split('T')[0]
-  const takenKey = `gen_taken_${today}`
+  const takenKey = `taken_doses_${today}`
 
   const [persisting, setPersisting] = useState(false)
   const [persistSuccess, setPersistSuccess] = useState(false)
@@ -204,6 +205,23 @@ export default function DailyPlanGenerator({ onNavigate }: DailyPlanGeneratorPro
     setGeneratedDoses(updated)
     const takenIds = updated.filter(d => d.taken).map(d => d.id)
     localStorage.setItem(takenKey, JSON.stringify(takenIds))
+
+    const dose = generatedDoses.find(d => d.id === id)
+    if (dose) {
+      const willBeTaken = !dose.taken
+      const dateStr = takenKey.replace('taken_doses_', '')
+      const scheduledTime = `${dateStr}T${dose.time}:00`
+      medeaseApi.medications.logHistoryEntry({
+        medication_id: dose.medId || 'custom',
+        medication_name: dose.name,
+        dosage: dose.dosage,
+        scheduled_time: new Date(scheduledTime).toISOString(),
+        status: willBeTaken ? 'taken' : 'pending',
+        taken_at: willBeTaken ? new Date().toISOString() : null
+      }).catch(err => {
+        console.error("Failed to log history toggle on backend:", err)
+      })
+    }
   }
 
   const handleTimeChange = (id: string, newTime: string) => {
@@ -286,6 +304,9 @@ export default function DailyPlanGenerator({ onNavigate }: DailyPlanGeneratorPro
       setMedications(updatedMeds)
       localStorage.setItem('medications', JSON.stringify(updatedMeds))
       setPersistSuccess(true)
+      if (onSchedulePersisted) {
+        onSchedulePersisted()
+      }
       setTimeout(() => {
         setPersistSuccess(false)
         if (onNavigate) {
@@ -376,7 +397,6 @@ export default function DailyPlanGenerator({ onNavigate }: DailyPlanGeneratorPro
           className="w-full flex items-center justify-between px-6 py-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
         >
           <div className="flex items-center gap-2">
-            <Sparkles size={16} className="text-indigo-500" />
             <h2 className="font-bold text-slate-900 dark:text-white text-base">Your Daily Routine</h2>
           </div>
           {showInputs ? <ChevronUp size={18} className="text-slate-400" /> : <ChevronDown size={18} className="text-slate-400" />}
@@ -508,22 +528,22 @@ export default function DailyPlanGenerator({ onNavigate }: DailyPlanGeneratorPro
           {/* Progress bar */}
           <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-5 shadow-sm flex items-center justify-between gap-4">
             <div>
-              <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Today's Progress</p>
+              <p className="text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">Today's Progress</p>
               <p className="text-2xl font-black text-slate-900 dark:text-white">
-                {takenCount} <span className="text-slate-400 font-medium text-lg">/ {total}</span>
+                {takenCount} <span className="text-slate-500 font-medium text-lg">/ {total}</span>
               </p>
-              <p className="text-xs text-slate-400 mt-0.5">{total - takenCount} doses remaining</p>
+              <p className="text-xs text-slate-600 mt-0.5">{total - takenCount} doses remaining</p>
             </div>
             <div className="flex-1 max-w-48">
-              <div className="h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+              <div className="h-2.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full transition-all duration-500"
                   style={{ width: `${total > 0 ? (takenCount / total) * 100 : 0}%` }}
                 />
               </div>
             </div>
-            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2">
-              <Calendar size={12} className="text-blue-500" />
+            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-600 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2">
+              <Calendar size={12} className="text-blue-600" />
               {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
             </div>
           </div>
@@ -546,9 +566,9 @@ export default function DailyPlanGenerator({ onNavigate }: DailyPlanGeneratorPro
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5 border-b border-slate-100 dark:border-slate-800 pb-4">
               <div>
                 <h2 className="font-extrabold text-slate-900 dark:text-white text-base">Generated Timeline</h2>
-                <p className="text-xs text-slate-500 mt-0.5">Edit slot times below to customize your schedule, then click persist.</p>
+                <p className="text-sm text-slate-700 mt-0.5">Edit slot times below to customize your schedule, then click persist.</p>
               </div>
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+              <div className="flex flex-col items-stretch md:items-center gap-2">
                 <button
                   onClick={handleRecreate}
                   className="flex-shrink-0 flex items-center justify-center gap-1.5 px-4 py-2.5 text-xs font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl transition-all shadow-sm"
@@ -605,7 +625,7 @@ export default function DailyPlanGenerator({ onNavigate }: DailyPlanGeneratorPro
                               value={dose.time}
                               disabled={dose.taken}
                               onChange={e => handleTimeChange(dose.id, e.target.value)}
-                              className="bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2 py-0.5 text-[11px] font-bold text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500/40 w-20 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                              className="bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg py-0.5 text-[11px] font-bold text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500/40 w-20 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                             />
                             {dose.riskLevel === 'High' && !dose.taken && (
                               <span className="flex items-center gap-1 text-[10px] font-bold text-red-500 bg-red-50 dark:bg-red-500/10 px-1.5 py-0.5 rounded-full border border-red-200 dark:border-red-500/20">

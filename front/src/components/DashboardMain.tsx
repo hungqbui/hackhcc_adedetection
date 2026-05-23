@@ -21,6 +21,7 @@ import SpotlightCard from './react-bits/SpotlightCard'
 import StarBorder from './StarBorder'
 import type { View } from '../App'
 import { medeaseApi } from '../api'
+import type { GeneratedMasterSchedule } from '../api'
 
 interface Medication {
   id: string
@@ -49,6 +50,68 @@ interface TodayDose {
   status: 'taken' | 'upcoming' | 'missed'
   taken: boolean
   riskLevel: 'Safe' | 'Moderate' | 'High'
+  instructions?: string
+}
+
+const formatTime = (timeStr: string) => {
+  const [h, m] = timeStr.split(':').map(Number)
+  const ampm = h >= 12 ? 'PM' : 'AM'
+  const hour = h % 12 || 12
+  return `${hour}:${m.toString().padStart(2, '0')} ${ampm}`
+}
+
+function mapBackendScheduleToDoses(
+  backendSchedule: GeneratedMasterSchedule,
+  medications: Medication[],
+  takenIds: string[]
+): TodayDose[] {
+  const doses: TodayDose[] = []
+  const now = new Date()
+  const currentMinutes = now.getHours() * 60 + now.getMinutes()
+
+  backendSchedule.slots.forEach((slot, slotIdx) => {
+    slot.medication_names.forEach((medName, medIdx) => {
+      // Find matching medication in medications list to get its dosage and other details
+      const foundMed = medications.find(m => m.name.toLowerCase() === medName.toLowerCase()) || 
+                       medications.find(m => m.name.toLowerCase().includes(medName.toLowerCase())) || 
+                       medications.find(m => medName.toLowerCase().includes(m.name.toLowerCase()))
+
+      const dosage = foundMed ? foundMed.dosage : 'As directed'
+      const purpose = foundMed ? foundMed.purpose : 'Supplement'
+      const medId = foundMed ? foundMed.id : ''
+      const riskLevel = slot.interaction_warnings ? 'High' : (foundMed ? foundMed.riskLevel : 'Safe')
+      const instructions = slot.instructions + (slot.interaction_warnings ? ` (Caution: ${slot.interaction_warnings})` : '')
+
+      const id = `${medName}-${slot.time}-${slotIdx}-${medIdx}`
+      const [h, m] = slot.time.split(':').map(Number)
+      const doseMinutes = h * 60 + m
+      let status: 'taken' | 'upcoming' | 'missed' = 'upcoming'
+      
+      const taken = takenIds.includes(id)
+      if (taken) {
+        status = 'taken'
+      } else if (currentMinutes > doseMinutes + 30) {
+        status = 'missed'
+      }
+
+      doses.push({
+        id,
+        medId,
+        name: medName,
+        dosage,
+        purpose,
+        time: slot.time,
+        label: formatTime(slot.time),
+        status,
+        taken,
+        riskLevel,
+        instructions
+      })
+    })
+  })
+
+  // Sort chronologically
+  return doses.sort((a, b) => a.time.localeCompare(b.time))
 }
 
 interface MedicationInsight {
@@ -59,75 +122,7 @@ interface MedicationInsight {
   simplifiedExplanation: string
 }
 
-const DEFAULT_MEDICATIONS: Medication[] = [
-  {
-    id: '1', name: 'Lisinopril', dosage: '10mg', frequency: 'Once daily (Morning)',
-    purpose: 'Hypertension', startDate: '2026-01-15', riskLevel: 'Safe',
-    sideEffects: ['Dry cough', 'Dizziness']
-  },
-  {
-    id: '2', name: 'Aspirin', dosage: '81mg', frequency: 'Once daily (Morning)',
-    purpose: 'Cardioprotection', startDate: '2026-02-10', riskLevel: 'High',
-    sideEffects: ['Stomach irritation', 'Easy bruising'],
-    notes: 'Interact warning: Co-administration with Ibuprofen increases gastrointestinal bleeding risks.'
-  },
-  {
-    id: '3', name: 'Ibuprofen', dosage: '400mg', frequency: 'Every 8 hours as needed',
-    purpose: 'Joint Pain', startDate: '2026-05-01', riskLevel: 'High',
-    sideEffects: ['Stomach ache', 'Nausea'],
-    notes: 'Interact warning: May reduce cardioprotective effect of low-dose Aspirin.'
-  },
-  {
-    id: '4', name: 'Metformin', dosage: '500mg', frequency: 'Twice daily (Morning/Evening)',
-    purpose: 'Type 2 Diabetes', startDate: '2026-03-01', riskLevel: 'Safe',
-    sideEffects: ['Nausea', 'Metabolism changes']
-  }
-]
 
-const MEDICATION_INSIGHTS: Record<string, MedicationInsight> = {
-  lisinopril: {
-    whatItIsFor: "Treats high blood pressure (hypertension) and helps prevent heart attacks or strokes.",
-    sideEffects: "Dry cough, dizziness, lightheadedness, and headache.",
-    whenToAvoid: "Avoid during pregnancy. Do not take if you have a history of angioedema (severe swelling).",
-    foodInteractions: "Avoid potassium-rich foods (like bananas) or potassium supplements, as Lisinopril can increase potassium in your blood.",
-    simplifiedExplanation: "Lisinopril relaxes your blood vessels to lower pressure, making it easier for your heart to pump blood."
-  },
-  aspirin: {
-    whatItIsFor: "Protects against heart attacks and strokes by preventing blood clots.",
-    sideEffects: "Stomach irritation, heartburn, easy bruising, and increased bleeding.",
-    whenToAvoid: "Avoid if you have active stomach ulcers, bleeding disorders, or take blood thinners without medical supervision.",
-    foodInteractions: "Avoid taking on an empty stomach. Limit alcohol intake to reduce bleeding risk.",
-    simplifiedExplanation: "Aspirin acts as a mild blood thinner to keep blood flowing smoothly through your arteries."
-  },
-  ibuprofen: {
-    whatItIsFor: "Relieves mild to moderate pain, inflammation, and fever.",
-    sideEffects: "Stomach ache, heartburn, nausea, and headache.",
-    whenToAvoid: "Avoid if you have kidney disease, history of stomach ulcers, or if you recently had heart surgery.",
-    foodInteractions: "Always take with food or milk to protect your stomach lining from irritation.",
-    simplifiedExplanation: "Ibuprofen blocks the chemicals causing inflammation and pain in your joints and muscles."
-  },
-  metformin: {
-    whatItIsFor: "Lowers blood sugar levels in type 2 diabetes by improving insulin sensitivity.",
-    sideEffects: "Nausea, diarrhea, abdominal discomfort, and metallic taste.",
-    whenToAvoid: "Avoid if you have severe kidney disease or are at risk of lactic acidosis.",
-    foodInteractions: "Take with food (breakfast/dinner) to reduce digestive side effects.",
-    simplifiedExplanation: "Metformin helps your body utilize its own insulin better and reduces the sugar released by your liver."
-  },
-  magnesium: {
-    whatItIsFor: "Supports muscle function, nervous system health, and sleep regulation.",
-    sideEffects: "Mild stomach cramps or diarrhea if taken in high doses.",
-    whenToAvoid: "Avoid if you have severe kidney impairment without doctor approval.",
-    foodInteractions: "Taking with food can reduce stomach upset. Avoid taking at the exact same time as calcium or iron.",
-    simplifiedExplanation: "Magnesium relaxes tense muscles and supports peaceful sleep when taken at night."
-  },
-  iron: {
-    whatItIsFor: "Treats or prevents iron-deficiency anemia by helping build red blood cells.",
-    sideEffects: "Constipation, dark stools, upset stomach.",
-    whenToAvoid: "Avoid if you have hemochromatosis (iron overload disorder).",
-    foodInteractions: "Absorbs best on an empty stomach. Avoid taking with tea, coffee, milk, or calcium, which block absorption. Pair with Vitamin C for better absorption.",
-    simplifiedExplanation: "Iron absorbs better on an empty stomach. It helps your red blood cells carry oxygen throughout your body."
-  }
-}
 
 function getInsight(med: Medication): MedicationInsight {
   if (med.simplifiedExplanation) {
@@ -139,12 +134,7 @@ function getInsight(med: Medication): MedicationInsight {
       simplifiedExplanation: med.simplifiedExplanation
     }
   }
-  const key = med.name.toLowerCase().trim()
-  for (const [k, v] of Object.entries(MEDICATION_INSIGHTS)) {
-    if (key.includes(k) || k.includes(key)) {
-      return v
-    }
-  }
+
   return {
     whatItIsFor: `Indicated for general wellness support.`,
     sideEffects: med.sideEffects?.join(', ') || "Generally well tolerated. Possible mild stomach upset.",
@@ -269,6 +259,22 @@ export default function DashboardMain({ onNavigate, medications, onFetchMeds }: 
     setDoses(updated)
     const takenIds = updated.filter(d => d.taken).map(d => d.id)
     localStorage.setItem(todayKey, JSON.stringify(takenIds))
+
+    const dose = doses.find(d => d.id === doseId)
+    if (dose) {
+      const dateStr = todayKey.replace('taken_doses_', '')
+      const scheduledTime = `${dateStr}T${dose.time}:00`
+      medeaseApi.medications.logHistoryEntry({
+        medication_id: dose.medId || 'custom',
+        medication_name: dose.name,
+        dosage: dose.dosage,
+        scheduled_time: new Date(scheduledTime).toISOString(),
+        status: 'taken',
+        taken_at: new Date().toISOString()
+      }).catch(err => {
+        console.error("Failed to log history entry on backend:", err)
+      })
+    }
   }
 
   const takenCount = doses.filter(d => d.taken).length
@@ -280,7 +286,7 @@ export default function DashboardMain({ onNavigate, medications, onFetchMeds }: 
     medications.some(m => m.name.toLowerCase().includes('ibuprofen'))
 
   const resetToDefault = () => {
-    localStorage.setItem('medications', JSON.stringify(DEFAULT_MEDICATIONS))
+    localStorage.removeItem('medications')
     localStorage.removeItem(todayKey)
     onFetchMeds()
   }
@@ -297,7 +303,7 @@ export default function DashboardMain({ onNavigate, medications, onFetchMeds }: 
           <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight leading-tight">
             {todayLabel}
           </h1>
-          <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
+          <p className="text-slate-700 dark:text-slate-400 text-sm mt-1">
             Manage your medications and track daily adherence. Click any item for AI Medication Insights.
           </p>
         </div>
@@ -332,11 +338,11 @@ export default function DashboardMain({ onNavigate, medications, onFetchMeds }: 
             </span>
           </div>
           <div>
-            <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Medications Taken</p>
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">Medications Taken</p>
             <p className="text-3xl font-black text-slate-900 dark:text-white">
-              {takenCount} <span className="text-slate-400 font-medium text-xl">/ {totalCount}</span>
+              {takenCount} <span className="text-slate-500 font-medium text-xl">/ {totalCount}</span>
             </p>
-            <p className="text-xs text-slate-500 mt-1">
+            <p className="text-xs text-slate-700 mt-1">
               {missedCount > 0
                 ? <span className="text-red-500 font-semibold">{missedCount} missed dose{missedCount > 1 ? 's' : ''}</span>
                 : <span className="text-emerald-500 font-semibold">No missed doses</span>}
@@ -438,9 +444,9 @@ export default function DashboardMain({ onNavigate, medications, onFetchMeds }: 
                         <div className="w-2 h-2 rounded-full bg-slate-400"></div>
                       </span>
                       <div className="flex items-center gap-3 pt-1">
-                        <div className="h-px bg-slate-200 dark:bg-slate-700 flex-1 border-dashed"></div>
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{currentTimeStr} - NOW</span>
-                        <div className="h-px bg-slate-200 dark:bg-slate-700 flex-[3] border-dashed"></div>
+                        <div className="h-px bg-slate-500 dark:bg-slate-700 flex-1 border-dashed"></div>
+                        <span className="text-[12px] font-bold text-slate-600 uppercase tracking-wider">{currentTimeStr} - NOW</span>
+                        <div className="h-px bg-slate-500 dark:bg-slate-700 flex-[3] border-dashed"></div>
                       </div>
                     </li>
                   )}
@@ -456,16 +462,21 @@ export default function DashboardMain({ onNavigate, medications, onFetchMeds }: 
                     >
                       <div className="flex items-start gap-3 min-w-0">
                         <div className="min-w-0 flex-1">
-                          <p className="text-xs font-bold text-slate-500 dark:text-slate-400">{dose.label}</p>
+                          <p className="text-xs font-bold text-slate-600 dark:text-slate-400">{dose.label}</p>
                           <p className="font-bold text-slate-900 dark:text-white text-base mt-0.5 flex flex-wrap items-center gap-1.5">
                             <span className="break-words">{dose.name}</span>
                             <span className="text-[9px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 px-1.5 py-0.5 rounded border border-blue-200 dark:border-blue-500/20 flex items-center gap-0.5 flex-shrink-0">
                               <Sparkles size={8} /> AI Insight
                             </span>
                           </p>
-                          <p className="text-xs text-slate-500 mt-0.5 break-words whitespace-normal">
+                          <p className="text-xs text-slate-700 dark:text-slate-400 mt-0.5 break-words whitespace-normal">
                             {dose.dosage} • <span className="font-semibold text-slate-600 dark:text-slate-400">{dose.purpose}</span>
                           </p>
+                          {dose.instructions && (
+                            <p className="text-[11px] text-slate-700 dark:text-slate-400 mt-1.5 leading-relaxed">
+                              💡 <span className="italic">{dose.instructions}</span>
+                            </p>
+                          )}
                         </div>
                       </div>
                       <div className="flex items-center gap-2.5 flex-shrink-0" onClick={e => e.stopPropagation()}>
