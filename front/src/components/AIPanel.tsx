@@ -258,7 +258,7 @@ export default function AIPanel({ mobileMode = false, currentView = 'dashboard',
                   <ExpandableMedications meds={msg.retrievedMedications} />
                 )}
               </div>
-              <span className="text-[9px] text-slate-400 mt-1 px-1">
+              <span className="text-[10px] text-slate-600 mt-1 px-1">
                 {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </span>
             </div>

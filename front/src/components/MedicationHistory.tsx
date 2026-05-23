@@ -181,7 +181,7 @@ export default function MedicationHistory() {
         <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
           Medication History
         </h1>
-        <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
+        <p className="text-slate-700 dark:text-slate-400 text-sm mt-1">
           Track your adherence calendar, weekly trends, and identify patterns.
         </p>
       </div>

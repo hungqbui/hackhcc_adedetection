@@ -105,9 +105,7 @@ export default function MedicationsList({
                       <h2 className="text-base font-extrabold text-slate-900 dark:text-white truncate">
                         {med.name}
                       </h2>
-                      <p className="text-xs text-slate-600 dark:text-slate-400 font-bold uppercase tracking-wider mt-1 truncate">
-                        {med.dosage}
-                      </p>
+                      
                     </div>
                   </div>
 
@@ -184,16 +182,16 @@ export default function MedicationsList({
                   <h2 className="text-xl font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
                     {selectedMed.name}
                   </h2>
-                  <p className="text-sm text-slate-500 font-bold uppercase tracking-wider mt-1">
-                    {selectedMed.dosage}
-                  </p>
                   <p className="text-sm text-blue-500 font-bold uppercase tracking-wider mt-1">
                     {selectedMed.purpose || 'General Health'}
                   </p>
                 </div>
 
-                <div className="space-y-1.5 pt-3 border-t border-slate-50 dark:border-slate-800">
-                  <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+                <div className="space-y-1.5 border-t border-slate-50 dark:border-slate-800">
+                  <div className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400 font-bold uppercase tracking-wider mt-1 truncate">
+                    {selectedMed.dosage}
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs text-slate-700 dark:text-slate-400">
                     <Clock size={13} className="text-indigo-500" />
                     <span className="font-semibold">{selectedMed.frequency}</span>
                   </div>
@@ -213,7 +211,7 @@ export default function MedicationsList({
 
                 {selectedMed.sideEffects && selectedMed.sideEffects.length > 0 && (
                   <div className="space-y-2 pt-3 border-t border-slate-50 dark:border-slate-800">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Common Side Effects</p>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600">Common Side Effects</p>
                     <div className="flex flex-wrap gap-1.5">
                       {selectedMed.sideEffects.map((e, idx) => (
                         <span
