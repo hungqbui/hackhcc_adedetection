@@ -40,17 +40,16 @@ export interface MedicationResponse extends MedicationBase {
   created_at: string;
 }
 
-export interface ScheduledTimeSlot {
+export interface ScheduleTimeSlot {
   time: string; // HH:MM
-  label: string;
-  medications: string[];
-  instructions?: string;
-  warnings?: string[];
+  medication_names: string[];
+  instructions: string;
+  interaction_warnings?: string;
 }
 
 export interface GeneratedMasterSchedule {
-  schedule_slots: ScheduledTimeSlot[];
-  notes?: string;
+  slots: ScheduleTimeSlot[];
+  general_advice: string;
 }
 
 export interface ChatResponse {
@@ -183,10 +182,26 @@ export const medeaseApi = {
     },
 
     // Ask AI to generate structured daily timeslots spacing medications to avoid interactions
-    generateSchedule: async (medicationIds: string[]): Promise<GeneratedMasterSchedule> => {
+    generateSchedule: async (
+      medicationIds: string[],
+      wakeTime: string,
+      sleepTime: string,
+      breakfastTime: string,
+      lunchTime: string,
+      dinnerTime: string,
+      routineNotes?: string
+    ): Promise<GeneratedMasterSchedule> => {
       return apiRequest<GeneratedMasterSchedule>('/medications/schedule/generate', {
         method: 'POST',
-        body: JSON.stringify({ medication_ids: medicationIds }),
+        body: JSON.stringify({
+          medication_ids: medicationIds,
+          wake_time: wakeTime,
+          sleep_time: sleepTime,
+          breakfast_time: breakfastTime,
+          lunch_time: lunchTime,
+          dinner_time: dinnerTime,
+          routine_notes: routineNotes
+        }),
       });
     }
   },

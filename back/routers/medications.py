@@ -139,12 +139,25 @@ async def generate_master_schedule(
         "You are an expert pharmacist creating a highly optimized, safe daily schedule for a patient. "
         "The patient is taking the following list of medications/supplements:\n"
         f"{meds_text}\n"
-        "Your task is to organize these into chronological daily time slots (HH:MM).\n"
-        "CRITICAL RULES:\n"
-        "1. Separate medications that have known negative interactions.\n"
-        "2. Honor requirements like 'with food' by grouping them around standard meal times (e.g. 08:00 Breakfast, 13:00 Lunch, 19:00 Dinner).\n"
-        "3. Ensure the proper hourly spacing between doses for drugs taken multiple times a day.\n"
-        "4. Provide clear instructions and interaction warnings for each time slot if necessary."
+        "Here is the patient's daily routine schedule:\n"
+        f"- Wake-up time: {request.wake_time}\n"
+        f"- Sleep time: {request.sleep_time}\n"
+        f"- Breakfast time: {request.breakfast_time}\n"
+        f"- Lunch time: {request.lunch_time}\n"
+        f"- Dinner time: {request.dinner_time}\n"
+    )
+    if request.routine_notes:
+        prompt_text += f"- Daily routine notes/preferences: {request.routine_notes}\n"
+
+    prompt_text += (
+        "\nYour task is to organize these medications into chronological daily time slots (in HH:MM 24-hour format).\n"
+        "CRITICAL SAFETY & ROUTINE COMPLIANCE RULES:\n"
+        "1. Avoid drug-drug interactions: Identify medications that have known negative interactions or shouldn't be taken together. Separate their administration times (e.g., by at least 2-4 hours, or as clinically recommended).\n"
+        "2. Align with meals and routine: If a medication should be taken with food (with_food is True or indicated in frequency/instructions), schedule it at/near the patient's breakfast, lunch, or dinner time. If it must be taken on an empty stomach, schedule it at a suitable time away from meals (e.g. upon waking up, or at bedtime).\n"
+        "3. Respect wake/sleep times: Do not schedule medication when the patient is asleep unless absolutely required, in which case add a warning. Fit all doses between their wake time and sleep time.\n"
+        "4. Address any routine notes/preferences specified by the patient.\n"
+        "5. For each time slot (ScheduleTimeSlot), provide the exact 24-hour time ('HH:MM'), the list of medication names to take, clear instructions, and any relevant interaction warnings or explanations for why certain medications are scheduled/separated.\n"
+        "6. Provide overall medical advice in the 'general_advice' field summarizing the schedule structure, drug interaction checking results, and key recommendations."
     )
 
     try:

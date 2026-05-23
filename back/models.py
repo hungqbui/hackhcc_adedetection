@@ -143,4 +143,10 @@ class GeneratedMasterSchedule(BaseModel):
 
 class GenerateScheduleRequest(BaseModel):
     medication_ids: List[str]
+    wake_time: str
+    sleep_time: str
+    breakfast_time: str
+    lunch_time: str
+    dinner_time: str
+    routine_notes: Optional[str] = None
 
