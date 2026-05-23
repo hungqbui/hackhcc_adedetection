@@ -78,7 +78,7 @@ export default function Sidebar({
         {!collapsed && (
           <button
             onClick={onCollapseToggle}
-            className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors"
+            className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 hover:text-slate-700 dark:hover:text-white transition-colors"
             aria-label="Collapse sidebar"
           >
             <ChevronLeft size={16} />
@@ -90,7 +90,7 @@ export default function Sidebar({
       {collapsed && (
         <button
           onClick={onCollapseToggle}
-          className="mx-auto mt-2 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors"
+          className="mx-auto mt-2 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 hover:text-slate-700 dark:hover:text-white transition-colors"
           aria-label="Expand sidebar"
         >
           <ChevronRight size={16} />
@@ -100,7 +100,7 @@ export default function Sidebar({
       {/* Navigation Items */}
       <nav className={`flex-1 py-4 space-y-1.5 overflow-x-hidden overflow-y-auto ${collapsed ? 'px-2' : 'px-3'}`}>
         {!collapsed && (
-          <p className="sidebar-label text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 px-2 pb-1 origin-left">
+          <p className="sidebar-label text-[10px] font-bold uppercase tracking-widest text-slate-600 dark:text-slate-500 px-2 pb-1 origin-left">
             Navigation
           </p>
         )}
@@ -160,7 +160,7 @@ export default function Sidebar({
       {/* Footer */}
       {!collapsed && (
         <div className="px-4 py-3 border-t border-slate-100 dark:border-slate-800">
-          <p className="sidebar-label text-[10px] text-slate-400 dark:text-slate-600 text-center font-medium origin-left">
+          <p className="sidebar-label text-[11px] text-slate-500 dark:text-slate-600 text-center font-medium origin-left">
             MedEase v1.0
           </p>
         </div>
