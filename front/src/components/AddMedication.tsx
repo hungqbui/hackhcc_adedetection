@@ -464,19 +464,19 @@ export default function AddMedication({ onMedicationAdded }: AddMedicationProps)
           <Sparkles className="text-blue-500" size={18} />
           <h2 className="font-bold text-slate-800 dark:text-white text-base">AI Smart Scan & Dictation</h2>
         </div>
-        <p className="text-xs text-slate-500 leading-relaxed max-w-xl">
+        <p className="text-sm text-slate-700 leading-relaxed max-w-xl">
           Use your camera to scan a pill bottle label, tap the microphone to dictate, or type the name below. Our AI automatically extracts dosage, purpose, and schedules it for you!
         </p>
 
         {/* Text Modality Box */}
         <form onSubmit={processTextScan} className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-600" />
           <input
             type="text"
             value={textScanInput}
             onChange={(e) => setTextScanInput(e.target.value)}
             placeholder="Type drug name or instructions (e.g. 'Magnesium 400mg daily')"
-            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl pl-9 pr-24 py-2.5 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-500 dark:border-slate-800 rounded-xl pl-9 pr-24 py-2.5 text-sm text-slate-950 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
             disabled={isListening || isScanningPhoto}
           />
           <button
@@ -500,7 +500,7 @@ export default function AddMedication({ onMedicationAdded }: AddMedicationProps)
               <>
                 <Upload size={24} className="text-slate-400 group-hover:text-blue-500 transition-colors mb-2" />
                 <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Upload Bottle Photo</span>
-                <span className="text-[10px] text-slate-400 mt-1">Supports JPEG, PNG</span>
+                <span className="text-[10px] text-slate-600 mt-1">Supports JPEG, PNG</span>
               </>
             )}
             <input
@@ -561,18 +561,8 @@ export default function AddMedication({ onMedicationAdded }: AddMedicationProps)
                   <Mic size={24} />
                 </button>
                 <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Voice Dictation Input</span>
-                <span className="text-[10px] text-slate-400 mt-1">Click mic to record your dosage</span>
+                <span className="text-[10px] text-slate-600 mt-1">Click mic to record your dosage</span>
               </>
-            )}
-            
-            {/* Quick Example Button */}
-            {!isRecording && !isListening && (
-              <button
-                onClick={handleExampleVoiceFlow}
-                className="mt-3 px-3 py-1.5 text-[10px] font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 text-blue-600 dark:text-blue-400 transition-all flex items-center gap-1.5"
-              >
-                <Mic size={11} /> Say: "I take magnesium 400mg every night."
-              </button>
             )}
             
             {isListening && (
