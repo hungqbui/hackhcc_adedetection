@@ -53,6 +53,20 @@ export interface ChatResponse {
   reply: string;
 }
 
+export interface MedicationAdvisingInfo {
+  id: string;
+  name: string;
+  purpose: string;
+  dosage: string;
+  frequency: string;
+  similarity: number;
+}
+
+export interface ChatAdvisingResponse {
+  reply: string;
+  retrieved_medications: MedicationAdvisingInfo[];
+}
+
 export interface Token {
   access_token: string;
   token_type: string;
@@ -165,6 +179,17 @@ export const medeaseApi = {
       return apiRequest<ChatResponse>('/chat/', {
         method: 'POST',
         body: JSON.stringify({ message }),
+      });
+    },
+    advising: async (message: string, imageFile?: File | null): Promise<ChatAdvisingResponse> => {
+      const formData = new FormData();
+      formData.append('message', message);
+      if (imageFile) {
+        formData.append('image', imageFile);
+      }
+      return apiRequest<ChatAdvisingResponse>('/chat/chat_advising', {
+        method: 'POST',
+        body: formData,
       });
     }
   }

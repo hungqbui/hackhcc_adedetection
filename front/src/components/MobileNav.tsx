@@ -1,4 +1,5 @@
 import { LayoutDashboard, PlusCircle, CalendarDays, Bot, User } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import type { View } from '../App'
 
 interface MobileNavProps {
@@ -6,11 +7,10 @@ interface MobileNavProps {
   activeView: View
 }
 
-const navItems: { view: View; label: string; icon: React.ElementType }[] = [
+const navItems: { view: View; label: string; icon: LucideIcon }[] = [
   { view: 'dashboard', label: 'Today', icon: LayoutDashboard },
   { view: 'add', label: 'Add', icon: PlusCircle },
   { view: 'generator', label: 'Plan', icon: CalendarDays },
-  { view: 'ai', label: 'AI', icon: Bot },
   { view: 'profile', label: 'Profile', icon: User },
 ]
 
@@ -28,11 +28,10 @@ export default function MobileNav({ onNavigate, activeView }: MobileNavProps) {
             key={item.view}
             id={`mobile-nav-${item.view}`}
             onClick={() => onNavigate(item.view)}
-            className={`flex flex-col items-center gap-0.5 py-1.5 px-3 rounded-xl transition-all duration-200 ${
-              isActive
-                ? 'text-blue-600 dark:text-blue-400'
-                : 'text-slate-400 dark:text-slate-500 active:scale-95'
-            }`}
+            className={`flex flex-col items-center gap-0.5 py-1.5 px-3 rounded-xl transition-all duration-200 ${isActive
+              ? 'text-blue-600 dark:text-blue-400'
+              : 'text-slate-400 dark:text-slate-500 active:scale-95'
+              }`}
             aria-label={item.label}
           >
             <div className={`p-1 rounded-lg transition-all duration-200 ${isActive ? 'bg-blue-50 dark:bg-blue-500/10' : ''}`}>
