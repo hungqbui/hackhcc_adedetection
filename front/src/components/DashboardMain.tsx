@@ -19,6 +19,7 @@ import {
 } from 'lucide-react'
 import SpotlightCard from './react-bits/SpotlightCard'
 import StarBorder from './StarBorder'
+import BorderGlow from './BorderGlow'
 import type { View } from '../App'
 import { medeaseApi } from '../api'
 import type { GeneratedMasterSchedule } from '../api'
@@ -72,9 +73,9 @@ function mapBackendScheduleToDoses(
   backendSchedule.slots.forEach((slot, slotIdx) => {
     slot.medication_names.forEach((medName, medIdx) => {
       // Find matching medication in medications list to get its dosage and other details
-      const foundMed = medications.find(m => m.name.toLowerCase() === medName.toLowerCase()) || 
-                       medications.find(m => m.name.toLowerCase().includes(medName.toLowerCase())) || 
-                       medications.find(m => medName.toLowerCase().includes(m.name.toLowerCase()))
+      const foundMed = medications.find(m => m.name.toLowerCase() === medName.toLowerCase()) ||
+        medications.find(m => m.name.toLowerCase().includes(medName.toLowerCase())) ||
+        medications.find(m => medName.toLowerCase().includes(m.name.toLowerCase()))
 
       const dosage = foundMed ? foundMed.dosage : 'As directed'
       const purpose = foundMed ? foundMed.purpose : 'Supplement'
@@ -86,7 +87,7 @@ function mapBackendScheduleToDoses(
       const [h, m] = slot.time.split(':').map(Number)
       const doseMinutes = h * 60 + m
       let status: 'taken' | 'upcoming' | 'missed' = 'upcoming'
-      
+
       const taken = takenIds.includes(id)
       if (taken) {
         status = 'taken'
@@ -421,20 +422,20 @@ export default function DashboardMain({ onNavigate, medications, onFetchMeds }: 
       )}
 
       {/* ── TODAY'S VERTICAL TIMELINE ────────────────────────── */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm p-6">
+
+      <div className="bg-white/90 dark:bg-slate-900/90 border border-slate-100 dark:border-slate-800 p-6 h-full w-full">
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-3">
             <h2 className="font-extrabold text-slate-900 dark:text-white text-lg">Today's Schedule</h2>
             <button
               onClick={triggerDemo}
               disabled={demoSending}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold rounded-lg border transition-all shadow-sm ${
-                demoStatus === 'success'
-                  ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/25'
-                  : demoStatus === 'error'
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold rounded-lg border transition-all shadow-sm ${demoStatus === 'success'
+                ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/25'
+                : demoStatus === 'error'
                   ? 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 border-red-200 dark:border-red-500/25'
                   : 'bg-indigo-50/70 hover:bg-indigo-100 dark:bg-indigo-500/10 dark:hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 border-indigo-200/50 dark:border-indigo-500/15'
-              }`}
+                }`}
             >
               <Sparkles size={11} className={demoSending ? "animate-spin" : ""} />
               {demoSending ? 'Sending Alert...' : demoStatus === 'success' ? 'Alert Sent!' : demoStatus === 'error' ? 'Failed' : 'Send Demo Reminder'}
@@ -483,53 +484,67 @@ export default function DashboardMain({ onNavigate, medications, onFetchMeds }: 
                         <div className="h-px bg-slate-500 dark:bg-slate-700 flex-[3] border-dashed"></div>
                       </div>
                     </li>
+
                   )}
                   <li className={`ml-6 ${isLast ? 'pb-0' : 'pb-5'}`}>
                     {/* Timeline dot */}
                     <span className={`absolute -left-[9px] w-4 h-4 rounded-full border-2 border-white dark:border-slate-900 ${statusConfig.dot}`}></span>
-                    <div
-                      onClick={() => {
-                        const med = medications.find(m => m.id === dose.medId)
-                        if (med) setSelectedMed(med)
-                      }}
-                      className="cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl bg-slate-50/60 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                    <BorderGlow
+                      className="rounded-xl overflow-hidden w-full"
+                      glowColor="210 100 60"
+                      colors={['#3b82f6', '#60a5fa', '#8b5cf6']}
+                      backgroundColor="transparent"
+                      borderRadius={12}
+                      glowRadius={6}
+                      edgeSensitivity={65}
+                      glowIntensity={1}
+                      coneSpread={15}
+                      fillOpacity={0}
                     >
-                      <div className="flex items-start gap-3 min-w-0">
-                        <div className="min-w-0 flex-1">
-                          <p className="text-xs font-bold text-slate-600 dark:text-slate-400">{dose.label}</p>
-                          <p className="font-bold text-slate-900 dark:text-white text-base mt-0.5 flex flex-wrap items-center gap-1.5">
-                            <span className="break-words">{dose.name}</span>
-                            <span className="text-[9px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 px-1.5 py-0.5 rounded border border-blue-200 dark:border-blue-500/20 flex items-center gap-0.5 flex-shrink-0">
-                              <Sparkles size={8} /> AI Insight
-                            </span>
-                          </p>
-                          <p className="text-xs text-slate-700 dark:text-slate-400 mt-0.5 break-words whitespace-normal">
-                            {dose.dosage} • <span className="font-semibold text-slate-600 dark:text-slate-400">{dose.purpose}</span>
-                          </p>
-                          {dose.instructions && (
-                            <p className="text-[11px] text-slate-700 dark:text-slate-400 mt-1.5 leading-relaxed">
-                              💡 <span className="italic">{dose.instructions}</span>
+                      <div
+                        onClick={() => {
+                          const med = medications.find(m => m.id === dose.medId)
+                          if (med) setSelectedMed(med)
+                        }}
+                        className="cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                      >
+                        <div className="flex items-start gap-3 min-w-0">
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-bold text-slate-600 dark:text-slate-400">{dose.label}</p>
+                            <p className="font-bold text-slate-900 dark:text-white text-base mt-0.5 flex flex-wrap items-center gap-1.5">
+                              <span className="break-words">{dose.name}</span>
+                              <span className="text-[9px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 px-1.5 py-0.5 rounded border border-blue-200 dark:border-blue-500/20 flex items-center gap-0.5 flex-shrink-0">
+                                <Sparkles size={8} /> AI Insight
+                              </span>
                             </p>
+                            <p className="text-xs text-slate-700 dark:text-slate-400 mt-0.5 break-words whitespace-normal">
+                              {dose.dosage} • <span className="font-semibold text-slate-600 dark:text-slate-400">{dose.purpose}</span>
+                            </p>
+                            {dose.instructions && (
+                              <p className="text-[11px] text-slate-700 dark:text-slate-400 mt-1.5 leading-relaxed">
+                                💡 <span className="italic">{dose.instructions}</span>
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2.5 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                          <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold border ${statusConfig.badge}`}>
+                            {dose.status === 'taken' && <CheckCircle2 size={11} />}
+                            {dose.status === 'missed' && <AlertTriangle size={11} />}
+                            {dose.status === 'upcoming' && <Clock size={11} />}
+                            {statusConfig.label}
+                          </span>
+                          {dose.status !== 'taken' && (
+                            <button
+                              onClick={() => markTaken(dose.id)}
+                              className="px-3 py-1.5 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors shadow-sm shadow-blue-500/20"
+                            >
+                              Mark taken
+                            </button>
                           )}
                         </div>
                       </div>
-                      <div className="flex items-center gap-2.5 flex-shrink-0" onClick={e => e.stopPropagation()}>
-                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold border ${statusConfig.badge}`}>
-                          {dose.status === 'taken' && <CheckCircle2 size={11} />}
-                          {dose.status === 'missed' && <AlertTriangle size={11} />}
-                          {dose.status === 'upcoming' && <Clock size={11} />}
-                          {statusConfig.label}
-                        </span>
-                        {dose.status !== 'taken' && (
-                          <button
-                            onClick={() => markTaken(dose.id)}
-                            className="px-3 py-1.5 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors shadow-sm shadow-blue-500/20"
-                          >
-                            Mark taken
-                          </button>
-                        )}
-                      </div>
-                    </div>
+                    </BorderGlow>
                   </li>
                 </React.Fragment>
               )
@@ -552,51 +567,6 @@ export default function DashboardMain({ onNavigate, medications, onFetchMeds }: 
         )}
       </div>
 
-      {/* ── SMART SUGGESTIONS ────────────────────────────────── */}
-      <div>
-        <h2 className="font-extrabold text-slate-900 dark:text-white text-lg mb-4">Smart Suggestions</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <SpotlightCard spotlightColor="rgba(239, 68, 68, 0.08)" className="p-5">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="p-2 bg-red-500/10 rounded-lg text-red-500"><Bell size={16} /></div>
-              <h3 className="font-bold text-slate-900 dark:text-white text-sm">Missed Doses</h3>
-            </div>
-            {missedCount > 0 ? (
-              <>
-                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                  You have <strong className="text-red-500">{missedCount} missed dose{missedCount > 1 ? 's' : ''}</strong> today. Consult your provider before doubling up on medications.
-                </p>
-                <button onClick={() => onNavigate('ai')} className="mt-3 text-xs text-red-500 font-bold hover:underline">Ask AI assistant →</button>
-              </>
-            ) : (
-              <p className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold">No missed doses today. 🎉 Keep it up!</p>
-            )}
-          </SpotlightCard>
-
-          <SpotlightCard spotlightColor="rgba(245, 158, 11, 0.08)" className="p-5">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="p-2 bg-amber-500/10 rounded-lg text-amber-500"><ShieldCheck size={16} /></div>
-              <h3 className="font-bold text-slate-900 dark:text-white text-sm">Refill Reminder</h3>
-            </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-              <strong>Ibuprofen</strong> started on May 1st. At current frequency you may need a refill within the next 10 days.
-            </p>
-            <button onClick={() => onNavigate('add')} className="mt-3 text-xs text-amber-500 font-bold hover:underline">Manage medications →</button>
-          </SpotlightCard>
-
-          <SpotlightCard spotlightColor="rgba(59, 130, 246, 0.08)" className="p-5">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="p-2 bg-blue-500/10 rounded-lg text-blue-500"><Lightbulb size={16} /></div>
-              <h3 className="font-bold text-slate-900 dark:text-white text-sm">Adherence Tip</h3>
-            </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-              Taking <strong>Metformin</strong> with meals significantly reduces nausea. Pair with breakfast and dinner for best tolerance.
-            </p>
-            <button onClick={() => onNavigate('generator')} className="mt-3 text-xs text-blue-500 font-bold hover:underline">Generate smart plan →</button>
-          </SpotlightCard>
-        </div>
-      </div>
-
       {/* ── ALL MEDICATIONS QUICK VIEW ────────────────────────── */}
       <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm">
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
@@ -614,8 +584,8 @@ export default function DashboardMain({ onNavigate, medications, onFetchMeds }: 
               className="cursor-pointer flex items-center gap-4 px-6 py-4 hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors"
             >
               <div className={`flex-shrink-0 p-2 rounded-xl ${med.riskLevel === 'High' ? 'bg-red-500/10 text-red-500'
-                  : med.riskLevel === 'Moderate' ? 'bg-amber-500/10 text-amber-500'
-                    : 'bg-emerald-500/10 text-emerald-500'
+                : med.riskLevel === 'Moderate' ? 'bg-amber-500/10 text-amber-500'
+                  : 'bg-emerald-500/10 text-emerald-500'
                 }`}>
                 <Pill size={16} />
               </div>
@@ -629,10 +599,10 @@ export default function DashboardMain({ onNavigate, medications, onFetchMeds }: 
                 <p className="text-xs text-slate-500 truncate">{med.dosage} · {med.frequency} · <span className="font-semibold">{med.purpose}</span></p>
               </div>
               <span className={`flex-shrink-0 text-xs font-semibold px-2.5 py-1 rounded-full border ${med.riskLevel === 'High'
-                  ? 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 border-red-200 dark:border-red-500/20'
-                  : med.riskLevel === 'Moderate'
-                    ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-500/20'
-                    : 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20'
+                ? 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 border-red-200 dark:border-red-500/20'
+                : med.riskLevel === 'Moderate'
+                  ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-500/20'
+                  : 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20'
                 }`}>
                 {med.riskLevel}
               </span>

@@ -88,6 +88,19 @@ export interface Token {
 // ==========================================
 // API Helper Wrapper
 // ==========================================
+
+let activeRequests = 0;
+
+function incrementRequests() {
+  activeRequests++;
+  window.dispatchEvent(new CustomEvent('medease-loading-change', { detail: { isLoading: activeRequests > 0 } }));
+}
+
+function decrementRequests() {
+  activeRequests = Math.max(0, activeRequests - 1);
+  window.dispatchEvent(new CustomEvent('medease-loading-change', { detail: { isLoading: activeRequests > 0 } }));
+}
+
 async function apiRequest<T>(
   endpoint: string,
   options: RequestInit = {}
@@ -104,25 +117,30 @@ async function apiRequest<T>(
     headers.set('Content-Type', 'application/json');
   }
 
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    ...options,
-    headers,
-  });
+  incrementRequests();
+  try {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      ...options,
+      headers,
+    });
 
-  if (response.status === 401) {
-    removeAuthToken();
-    localStorage.removeItem('medease_username');
-    localStorage.removeItem('medease_email');
-    window.dispatchEvent(new CustomEvent('medease-unauthorized'));
-    throw new Error('Session expired. Please log in again.');
+    if (response.status === 401) {
+      removeAuthToken();
+      localStorage.removeItem('medease_username');
+      localStorage.removeItem('medease_email');
+      window.dispatchEvent(new CustomEvent('medease-unauthorized'));
+      throw new Error('Session expired. Please log in again.');
+    }
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.detail || `API request failed with status ${response.status}`);
+    }
+
+    return response.json() as Promise<T>;
+  } finally {
+    decrementRequests();
   }
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.detail || `API request failed with status ${response.status}`);
-  }
-
-  return response.json() as Promise<T>;
 }
 
 // ==========================================
@@ -144,22 +162,27 @@ export const medeaseApi = {
       formData.append('username', username);
       formData.append('password', password);
 
-      const response = await fetch(`${API_BASE_URL}/auth/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: formData.toString(),
-      });
+      incrementRequests();
+      try {
+        const response = await fetch(`${API_BASE_URL}/auth/login`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: formData.toString(),
+        });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || 'Login failed');
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.detail || 'Login failed');
+        }
+
+        const tokenData = (await response.json()) as Token;
+        setAuthToken(tokenData.access_token);
+        return tokenData;
+      } finally {
+        decrementRequests();
       }
-
-      const tokenData = (await response.json()) as Token;
-      setAuthToken(tokenData.access_token);
-      return tokenData;
     },
 
     logout: () => {
@@ -320,15 +343,20 @@ export const medeaseApi = {
       if (audioFile) formData.append('audio', audioFile);
       if (history) formData.append('history', history);
 
-      const response = await fetch(`${API_BASE_URL}/chat/chat_advising_stream`, {
-        method: 'POST',
-        headers,
-        body: formData,
-      });
-      if (!response.ok) {
-        throw new Error(`Stream request failed with status ${response.status}`);
+      incrementRequests();
+      try {
+        const response = await fetch(`${API_BASE_URL}/chat/chat_advising_stream`, {
+          method: 'POST',
+          headers,
+          body: formData,
+        });
+        if (!response.ok) {
+          throw new Error(`Stream request failed with status ${response.status}`);
+        }
+        return response;
+      } finally {
+        decrementRequests();
       }
-      return response;
     }
   }
 };

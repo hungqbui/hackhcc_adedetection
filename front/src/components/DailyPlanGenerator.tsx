@@ -6,6 +6,7 @@ import {
 import { medeaseApi } from '../api'
 import type { GeneratedMasterSchedule } from '../api'
 import SpotlightCard from './react-bits/SpotlightCard'
+import AnimatedList from './AnimatedList'
 import type { View } from '../App'
 
 interface DailyPlanGeneratorProps {
@@ -543,11 +544,11 @@ export default function DailyPlanGenerator({ onNavigate, onSchedulePersisted }: 
               </div>
             )}
 
-            <ol className="relative border-l-2 border-slate-100 dark:border-slate-800 ml-3 space-y-0">
+            <AnimatedList className="relative border-l-2 border-slate-100 dark:border-slate-800 ml-3 space-y-0" displayScrollbar={false}>
               {generatedDoses.map((dose, idx) => {
                 const isLast = idx === generatedDoses.length - 1
                 return (
-                  <li key={dose.id} className={`ml-6 ${isLast ? 'pb-0' : 'pb-5'}`}>
+                  <div key={dose.id} className={`ml-6 ${isLast ? 'pb-0' : 'pb-5'}`}>
                     <span className={`absolute -left-[9px] w-4 h-4 rounded-full border-2 border-white dark:border-slate-900 transition-colors ${
                       dose.riskLevel === 'High' ? 'bg-red-500 animate-pulse' : 'bg-blue-400'
                     }`}></span>
@@ -586,10 +587,10 @@ export default function DailyPlanGenerator({ onNavigate, onSchedulePersisted }: 
                         </div>
                       </div>
                     </SpotlightCard>
-                  </li>
+                  </div>
                 )
               })}
-            </ol>
+            </AnimatedList>
           </div>
         </div>
       )}
