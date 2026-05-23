@@ -68,6 +68,7 @@ export interface MedicationAdvisingInfo {
 export interface ChatAdvisingResponse {
   reply: string;
   retrieved_medications: MedicationAdvisingInfo[];
+  action?: string;
 }
 
 export interface Token {
@@ -252,7 +253,7 @@ export const medeaseApi = {
         body: JSON.stringify({ message }),
       });
     },
-    advising: async (message: string, imageFile?: File | null, audioFile?: File | null): Promise<ChatAdvisingResponse> => {
+    advising: async (message: string, imageFile?: File | null, audioFile?: File | null, history?: string): Promise<ChatAdvisingResponse> => {
       const formData = new FormData();
       formData.append('message', message);
       if (imageFile) {
@@ -261,10 +262,35 @@ export const medeaseApi = {
       if (audioFile) {
         formData.append('audio', audioFile);
       }
+      if (history) {
+        formData.append('history', history);
+      }
       return apiRequest<ChatAdvisingResponse>('/chat/chat_advising', {
         method: 'POST',
         body: formData,
       });
+    },
+    /** Returns a raw fetch Response for SSE streaming */
+    advisingStream: async (message: string, imageFile?: File | null, audioFile?: File | null, history?: string): Promise<Response> => {
+      const token = getAuthToken();
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const formData = new FormData();
+      formData.append('message', message);
+      if (imageFile) formData.append('image', imageFile);
+      if (audioFile) formData.append('audio', audioFile);
+      if (history) formData.append('history', history);
+
+      const response = await fetch(`${API_BASE_URL}/chat/chat_advising_stream`, {
+        method: 'POST',
+        headers,
+        body: formData,
+      });
+      if (!response.ok) {
+        throw new Error(`Stream request failed with status ${response.status}`);
+      }
+      return response;
     }
   }
 };

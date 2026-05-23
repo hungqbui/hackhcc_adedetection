@@ -1,24 +1,17 @@
 import { useState, useRef, useEffect } from 'react'
 import { Send, Sparkles, Bot, AlertTriangle, Trash2, X, Image as ImageIcon, ChevronDown, ChevronUp } from 'lucide-react'
 import type { View } from '../App'
-import { medeaseApi } from '../api'
 import type { MedicationAdvisingInfo } from '../api'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-
-interface Message {
-  id: string
-  sender: 'user' | 'ai'
-  text: string
-  timestamp: Date
-  riskLevel?: 'Safe' | 'Moderate' | 'High'
-  imageUrl?: string
-  retrievedMedications?: MedicationAdvisingInfo[]
-}
+import { useChat } from '../contexts/ChatContext'
+import type { Message } from '../contexts/ChatContext'
 
 interface AIPanelProps {
   mobileMode?: boolean
   currentView?: View
+  onNavigate?: (view: View) => void
+  onClose?: () => void
 }
 
 const CONTEXT_GREETINGS: Partial<Record<View, string>> = {
@@ -40,7 +33,7 @@ const ExpandableMedications = ({ meds }: { meds: MedicationAdvisingInfo[] }) => 
 
   return (
     <div className="border border-indigo-500/20 rounded-xl overflow-hidden bg-indigo-50/50 dark:bg-indigo-500/5 mt-3">
-      <button 
+      <button
         onClick={() => setExpanded(!expanded)}
         className="w-full flex items-center justify-between px-3 py-2 text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/10 transition-colors"
       >
@@ -50,8 +43,8 @@ const ExpandableMedications = ({ meds }: { meds: MedicationAdvisingInfo[] }) => 
         </span>
         {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
       </button>
-      
-      <div 
+
+      <div
         className={`grid transition-all duration-300 ease-in-out ${expanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}
       >
         <div className="overflow-hidden">
@@ -78,14 +71,11 @@ const ExpandableMedications = ({ meds }: { meds: MedicationAdvisingInfo[] }) => 
   )
 }
 
-export default function AIPanel({ mobileMode = false, currentView = 'dashboard' }: AIPanelProps) {
-  const greet = CONTEXT_GREETINGS[currentView] ?? "Ask me about drug interactions, side effects, or your medication schedule."
-  const [messages, setMessages] = useState<Message[]>([
-    { id: '1', sender: 'ai', text: `Hello! I'm your MedEase AI Assistant. ${greet}`, timestamp: new Date() }
-  ])
+export default function AIPanel({ mobileMode = false, currentView = 'dashboard', onNavigate, onClose }: AIPanelProps) {
+  const { messages, isTyping, sendMessage, clearChat } = useChat()
+
   const [input, setInput] = useState('')
   const [selectedImage, setSelectedImage] = useState<File | null>(null)
-  const [isTyping, setIsTyping] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
   const [panelWidth, setPanelWidth] = useState(320)
   const isDragging = useRef(false)
@@ -120,50 +110,20 @@ export default function AIPanel({ mobileMode = false, currentView = 'dashboard' 
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, isTyping])
 
-  // Update greeting when view changes
-  useEffect(() => {
-    const newGreet = CONTEXT_GREETINGS[currentView] ?? "Ask me about drug interactions, side effects, or your medication schedule."
-    setMessages([{ id: '1', sender: 'ai', text: `Hello! I'm your MedEase AI Assistant. ${newGreet}`, timestamp: new Date() }])
-  }, [currentView])
-
-  const sendMessage = async (text: string, file?: File | null) => {
-    if (!text.trim() && !file) return
-
-    let imageUrl: string | undefined = undefined;
-    if (file) {
-      imageUrl = URL.createObjectURL(file);
-    }
-
-    const userMsg: Message = { id: Date.now().toString(), sender: 'user', text, timestamp: new Date(), imageUrl }
-    setMessages(prev => [...prev, userMsg])
+  const handleSend = async () => {
+    if (!input.trim() && !selectedImage) return
+    const textToSend = input
+    const imgToSend = selectedImage
     setInput('')
     setSelectedImage(null)
-    setIsTyping(true)
-
-    try {
-      const data = await medeaseApi.chat.advising(text || 'Please analyze this image.', file);
-      setMessages(prev => [...prev, {
-        id: Date.now().toString(),
-        sender: 'ai',
-        text: data.reply,
-        timestamp: new Date(),
-        retrievedMedications: data.retrieved_medications
-      }])
-    } catch (e) {
-      setMessages(prev => [...prev, {
-        id: Date.now().toString(),
-        sender: 'ai',
-        text: 'Sorry, I encountered an error communicating with the server.',
-        timestamp: new Date(),
-        riskLevel: 'High'
-      }])
-    } finally {
-      setIsTyping(false)
-    }
+    await sendMessage(textToSend, imgToSend, onNavigate)
   }
 
-  const clearChat = () => {
-    setMessages([{ id: '1', sender: 'ai', text: `Chat cleared. ${greet}`, timestamp: new Date() }])
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleSend()
+    }
   }
 
   const quickPrompts = QUICK_PROMPTS[currentView] ?? []
@@ -188,15 +148,14 @@ export default function AIPanel({ mobileMode = false, currentView = 'dashboard' 
   }
 
   return (
-    <aside 
+    <aside
       style={!mobileMode ? { width: panelWidth } : undefined}
-      className={`relative flex flex-col bg-white dark:bg-slate-900 z-30 ${
-      mobileMode
-        ? 'w-full h-full rounded-2xl border border-slate-200 dark:border-slate-800 transition-all duration-300'
-        : 'hidden lg:flex border-l border-slate-100 dark:border-slate-800 h-screen sticky top-0 shadow-xl shadow-slate-900/5'
-    }`}>
+      className={`relative flex flex-col bg-white dark:bg-slate-900 z-30 ${mobileMode
+          ? 'w-full h-full rounded-2xl border border-slate-200 dark:border-slate-800 transition-all duration-300'
+          : 'hidden lg:flex border-l border-slate-100 dark:border-slate-800 h-screen sticky top-0 shadow-xl shadow-slate-900/5'
+        }`}>
       {!mobileMode && (
-        <div 
+        <div
           className="absolute left-0 top-0 bottom-0 w-1 -ml-[2px] cursor-col-resize hover:bg-indigo-500/50 active:bg-indigo-500 z-50 transition-colors"
           onMouseDown={(e) => {
             e.preventDefault() // prevent text selection
@@ -217,10 +176,14 @@ export default function AIPanel({ mobileMode = false, currentView = 'dashboard' 
           </div>
         </div>
         <div className="flex items-center gap-1">
-          <button onClick={clearChat} title="Clear chat"
-            className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-red-400 transition-colors">
-            <Trash2 size={14} />
+          <button onClick={clearChat} title="Clear Chat" className="p-2 text-slate-500 hover:text-red-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
+            <Trash2 size={16} />
           </button>
+          {mobileMode && onClose && (
+            <button onClick={onClose} className="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
+              <X size={20} />
+            </button>
+          )}
           {!mobileMode && (
             <button onClick={() => setCollapsed(true)} title="Collapse"
               className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors">
@@ -236,7 +199,7 @@ export default function AIPanel({ mobileMode = false, currentView = 'dashboard' 
           {quickPrompts.map(p => (
             <button
               key={p}
-              onClick={() => sendMessage(p)}
+              onClick={() => sendMessage(p, null, onNavigate)}
               className="text-[10px] font-semibold px-2.5 py-1 bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-500/20 rounded-full transition-colors whitespace-nowrap"
             >
               {p}
@@ -255,11 +218,10 @@ export default function AIPanel({ mobileMode = false, currentView = 'dashboard' 
               className={`flex flex-col animate-in fade-in slide-in-from-bottom-2 duration-300 ${isAi ? '' : 'items-end'}`}
               style={{ animationFillMode: 'both' }}
             >
-              <div className={`max-w-[88%] px-3.5 py-2.5 rounded-2xl text-xs leading-relaxed border ${
-                isAi
+              <div className={`max-w-[88%] px-3.5 py-2.5 rounded-2xl text-xs leading-relaxed border ${isAi
                   ? riskStyle(msg.riskLevel)
                   : 'bg-indigo-600 border-indigo-500 text-white rounded-br-none'
-              } ${isAi ? 'rounded-bl-none' : ''}`}>
+                } ${isAi ? 'rounded-bl-none' : ''}`}>
                 {isAi && (
                   <div className="flex items-center gap-1 mb-1.5">
                     {msg.riskLevel === 'High' ? (
@@ -328,8 +290,8 @@ export default function AIPanel({ mobileMode = false, currentView = 'dashboard' 
               <span className="text-[10px] text-slate-400">Image attached</span>
             </div>
           </div>
-          <button 
-            onClick={() => setSelectedImage(null)} 
+          <button
+            onClick={() => setSelectedImage(null)}
             className="p-1.5 text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-red-500 rounded-lg transition-colors"
             title="Remove image"
           >
@@ -338,7 +300,7 @@ export default function AIPanel({ mobileMode = false, currentView = 'dashboard' 
         </div>
       )}
       <form
-        onSubmit={e => { e.preventDefault(); sendMessage(input, selectedImage) }}
+        onSubmit={e => { e.preventDefault(); handleSend() }}
         className="px-3 py-3 border-t border-slate-100 dark:border-slate-800 flex items-center gap-2 bg-slate-50/50 dark:bg-slate-900"
       >
         <button

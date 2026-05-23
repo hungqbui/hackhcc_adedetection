@@ -15,3 +15,4 @@ database = client.hackhcc
 user_collection = database.get_collection("users")
 medication_collection = database.get_collection("medications")
 schedule_collection = database.get_collection("schedules")
+changelog_collection = database.get_collection("changelogs")

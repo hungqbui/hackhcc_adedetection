@@ -154,21 +154,21 @@ function getInsight(med: Medication): MedicationInsight {
   }
 }
 
-function buildTodaySchedule(medications: Medication[], takenIds: string[]): TodayDose[] {
+function buildTodaySchedule(slots: any[], medications: Medication[], takenIds: string[]): TodayDose[] {
   const now = new Date()
   const currentMinutes = now.getHours() * 60 + now.getMinutes()
-
-  const timeMap: Record<string, { time: string; label: string }[]> = {
-    'morning': [{ time: '08:00', label: '8:00 AM' }],
-    'noon': [{ time: '12:00', label: '12:00 PM' }],
-    'evening': [{ time: '18:00', label: '6:00 PM' }],
-    'bedtime': [{ time: '21:00', label: '9:00 PM' }],
-  }
-
   const doses: TodayDose[] = []
 
-  medications.forEach(med => {
-    const addDose = (slot: { time: string; label: string }) => {
+  slots.forEach(slot => {
+    (slot.medication_names || []).forEach((medName: string) => {
+      const med = medications.find(m => m.name.toLowerCase() === medName.toLowerCase()) || {
+        id: `unknown-${medName.replace(/\\s+/g, '-')}`,
+        name: medName,
+        dosage: 'As prescribed',
+        purpose: 'Unknown',
+        riskLevel: 'Safe' as const
+      };
+
       const id = `${med.id}-${slot.time}`
       const [h, m] = slot.time.split(':').map(Number)
       const doseMinutes = h * 60 + m
@@ -179,6 +179,10 @@ function buildTodaySchedule(medications: Medication[], takenIds: string[]): Toda
         status = 'missed'
       }
 
+      const ampm = h >= 12 ? 'PM' : 'AM'
+      const hour = h % 12 || 12
+      const label = `${hour}:${m.toString().padStart(2, '0')} ${ampm}`
+
       doses.push({
         id,
         medId: med.id,
@@ -186,47 +190,12 @@ function buildTodaySchedule(medications: Medication[], takenIds: string[]): Toda
         dosage: med.dosage,
         purpose: med.purpose || 'Supplement',
         time: slot.time,
-        label: slot.label,
+        label: label,
         status,
         taken: takenIds.includes(id),
         riskLevel: med.riskLevel
       })
-    }
-
-    if (med.times && med.times.length > 0) {
-      med.times.forEach(t => {
-        const [h, m] = t.split(':').map(Number)
-        const ampm = h >= 12 ? 'PM' : 'AM'
-        const hour = h % 12 || 12
-        const label = `${hour}:${m.toString().padStart(2, '0')} ${ampm}`
-        
-        addDose({ time: t, label })
-      })
-      return
-    }
-
-    const freq = med.frequency.toLowerCase()
-
-    if (freq.includes('every 8 hours')) {
-      addDose(timeMap.morning[0])
-      addDose(timeMap.noon[0])
-      addDose(timeMap.bedtime[0])
-    } else if (freq.includes('twice daily') || freq.includes('morning/evening')) {
-      addDose(timeMap.morning[0])
-      addDose(timeMap.evening[0])
-    } else if (freq.includes('three times')) {
-      addDose(timeMap.morning[0])
-      addDose(timeMap.noon[0])
-      addDose(timeMap.evening[0])
-    } else if (freq.includes('morning')) {
-      addDose(timeMap.morning[0])
-    } else if (freq.includes('noon')) {
-      addDose(timeMap.noon[0])
-    } else if (freq.includes('evening')) {
-      addDose(timeMap.evening[0])
-    } else if (freq.includes('bedtime')) {
-      addDose(timeMap.bedtime[0])
-    }
+    })
   })
 
   return doses.sort((a, b) => a.time.localeCompare(b.time))
@@ -241,7 +210,7 @@ interface DashboardMainProps {
 export default function DashboardMain({ onNavigate, medications, onFetchMeds }: DashboardMainProps) {
   const [doses, setDoses] = useState<TodayDose[]>([])
   const [selectedMed, setSelectedMed] = useState<Medication | null>(null)
-  
+
   const now = new Date()
   const currentMinutes = now.getHours() * 60 + now.getMinutes()
   const currentTimeStr = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
@@ -263,11 +232,35 @@ export default function DashboardMain({ onNavigate, medications, onFetchMeds }: 
   const todayKey = `taken_doses_${today.toISOString().split('T')[0]}`
   const todayLabel = today.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
 
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
   useEffect(() => {
-    const takenStored = localStorage.getItem(todayKey);
-    const takenIds: string[] = takenStored ? JSON.parse(takenStored) : [];
-    setDoses(buildTodaySchedule(medications, takenIds));
-  }, [medications, todayKey]);
+    const handleUpdate = () => {
+      setRefreshTrigger(prev => prev + 1);
+    };
+    window.addEventListener('medease-schedule-updated', handleUpdate);
+    return () => {
+      window.removeEventListener('medease-schedule-updated', handleUpdate);
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    const loadSchedule = async () => {
+      try {
+        const schedule = await medeaseApi.medications.getPersistedSchedule();
+        if (active && schedule && schedule.slots) {
+          const takenStored = localStorage.getItem(todayKey);
+          const takenIds: string[] = takenStored ? JSON.parse(takenStored) : [];
+          setDoses(buildTodaySchedule(schedule.slots, medications, takenIds));
+        }
+      } catch (e) {
+        if (active) setDoses([]);
+      }
+    };
+    loadSchedule();
+    return () => { active = false; };
+  }, [medications, todayKey, refreshTrigger]);
 
   const markTaken = (doseId: string) => {
     const updated = doses.map(d =>
@@ -434,7 +427,7 @@ export default function DashboardMain({ onNavigate, medications, onFetchMeds }: 
               const doseMinutes = parseInt(dose.time.split(':')[0]) * 60 + parseInt(dose.time.split(':')[1])
               const prevDose = idx > 0 ? doses[idx - 1] : null
               const prevDoseMinutes = prevDose ? parseInt(prevDose.time.split(':')[0]) * 60 + parseInt(prevDose.time.split(':')[1]) : -1
-              
+
               const showCurrentTimeBefore = currentMinutes >= prevDoseMinutes && currentMinutes < doseMinutes
 
               return (
@@ -442,7 +435,7 @@ export default function DashboardMain({ onNavigate, medications, onFetchMeds }: 
                   {showCurrentTimeBefore && (
                     <li className="relative ml-6 pb-5">
                       <span className="absolute -left-[10px] w-5 h-5 rounded-full bg-slate-100 dark:bg-slate-800 border-2 border-white dark:border-slate-900 flex items-center justify-center">
-                         <div className="w-2 h-2 rounded-full bg-slate-400"></div>
+                        <div className="w-2 h-2 rounded-full bg-slate-400"></div>
                       </span>
                       <div className="flex items-center gap-3 pt-1">
                         <div className="h-px bg-slate-200 dark:bg-slate-700 flex-1 border-dashed"></div>
@@ -496,12 +489,12 @@ export default function DashboardMain({ onNavigate, medications, onFetchMeds }: 
                 </React.Fragment>
               )
             })}
-            
+
             {/* Show Current Time at the very end if it's past the last dose */}
-            {doses.length > 0 && currentMinutes >= (parseInt(doses[doses.length-1].time.split(':')[0]) * 60 + parseInt(doses[doses.length-1].time.split(':')[1])) && (
+            {doses.length > 0 && currentMinutes >= (parseInt(doses[doses.length - 1].time.split(':')[0]) * 60 + parseInt(doses[doses.length - 1].time.split(':')[1])) && (
               <li className="relative ml-6 pt-5">
                 <span className="absolute -left-[10px] w-5 h-5 rounded-full bg-slate-100 dark:bg-slate-800 border-2 border-white dark:border-slate-900 flex items-center justify-center mt-[-10px]">
-                   <div className="w-2 h-2 rounded-full bg-slate-400"></div>
+                  <div className="w-2 h-2 rounded-full bg-slate-400"></div>
                 </span>
                 <div className="flex items-center gap-3">
                   <div className="h-px bg-slate-200 dark:bg-slate-700 flex-1 border-dashed"></div>
@@ -575,11 +568,10 @@ export default function DashboardMain({ onNavigate, medications, onFetchMeds }: 
               onClick={() => setSelectedMed(med)}
               className="cursor-pointer flex items-center gap-4 px-6 py-4 hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors"
             >
-              <div className={`flex-shrink-0 p-2 rounded-xl ${
-                med.riskLevel === 'High' ? 'bg-red-500/10 text-red-500'
+              <div className={`flex-shrink-0 p-2 rounded-xl ${med.riskLevel === 'High' ? 'bg-red-500/10 text-red-500'
                   : med.riskLevel === 'Moderate' ? 'bg-amber-500/10 text-amber-500'
-                  : 'bg-emerald-500/10 text-emerald-500'
-              }`}>
+                    : 'bg-emerald-500/10 text-emerald-500'
+                }`}>
                 <Pill size={16} />
               </div>
               <div className="flex-1 min-w-0">
@@ -591,13 +583,12 @@ export default function DashboardMain({ onNavigate, medications, onFetchMeds }: 
                 </p>
                 <p className="text-xs text-slate-500 truncate">{med.dosage} · {med.frequency} · <span className="font-semibold">{med.purpose}</span></p>
               </div>
-              <span className={`flex-shrink-0 text-xs font-semibold px-2.5 py-1 rounded-full border ${
-                med.riskLevel === 'High'
+              <span className={`flex-shrink-0 text-xs font-semibold px-2.5 py-1 rounded-full border ${med.riskLevel === 'High'
                   ? 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 border-red-200 dark:border-red-500/20'
                   : med.riskLevel === 'Moderate'
-                  ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-500/20'
-                  : 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20'
-              }`}>
+                    ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-500/20'
+                    : 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20'
+                }`}>
                 {med.riskLevel}
               </span>
             </div>

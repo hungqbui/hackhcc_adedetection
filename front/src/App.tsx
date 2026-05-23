@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Sidebar from './components/Sidebar'
 import AIPanel from './components/AIPanel'
 import DashboardMain from './components/DashboardMain'
@@ -75,7 +75,7 @@ function App() {
   })
   const [medications, setMedications] = useState<Medication[]>([])
 
-  const fetchMedications = async () => {
+  const fetchMedications = useCallback(async () => {
     try {
       const dbMeds = await medeaseApi.medications.list()
       if (dbMeds) {
@@ -112,7 +112,17 @@ function App() {
     }
     if (!stored) localStorage.setItem('medications', JSON.stringify(meds))
     setMedications(meds)
-  }
+  }, [])
+
+  useEffect(() => {
+    const handleScheduleUpdated = () => {
+      fetchMedications()
+    }
+    window.addEventListener('medease-schedule-updated', handleScheduleUpdated)
+    return () => {
+      window.removeEventListener('medease-schedule-updated', handleScheduleUpdated)
+    }
+  }, [fetchMedications])
 
   const handleDeleteMedication = async (id: string) => {
     try {
@@ -231,7 +241,7 @@ function App() {
           {view === 'generator' && <DailyPlanGenerator onNavigate={setView} />}
           {view === 'ai' && (
             <div className="h-[calc(100vh-140px)] md:h-[calc(100vh-100px)]">
-              <AIPanel mobileMode={true} currentView={view} />
+              <AIPanel mobileMode={true} currentView={view} onNavigate={setView} />
             </div>
           )}
           {view === 'history' && <MedicationHistory />}
@@ -255,7 +265,7 @@ function App() {
       </div>
 
       {/* Desktop AI Panel — always visible on large screens */}
-      <AIPanel currentView={view} />
+      <AIPanel currentView={view} onNavigate={setView} />
     </div>
   )
 }

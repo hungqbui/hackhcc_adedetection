@@ -98,6 +98,18 @@ export default function DailyPlanGenerator({ onNavigate }: DailyPlanGeneratorPro
   const [persisting, setPersisting] = useState(false)
   const [persistSuccess, setPersistSuccess] = useState(false)
 
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  useEffect(() => {
+    const handleUpdate = () => {
+      setRefreshTrigger(prev => prev + 1);
+    };
+    window.addEventListener('medease-schedule-updated', handleUpdate);
+    return () => {
+      window.removeEventListener('medease-schedule-updated', handleUpdate);
+    };
+  }, []);
+
   useEffect(() => {
     const fetchLatestMeds = async () => {
       try {
@@ -147,7 +159,7 @@ export default function DailyPlanGenerator({ onNavigate }: DailyPlanGeneratorPro
       }
     }
     fetchLatestMeds()
-  }, [])
+  }, [refreshTrigger]);
 
   const toggleMedSelection = (id: string) => {
     setSelectedMedIds(prev =>

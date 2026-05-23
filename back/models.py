@@ -137,3 +137,19 @@ class ScheduleResponse(BaseModel):
     general_advice: str
     updated_at: datetime
 
+# --- ChangeLog Schema ---
+
+class ChangeLogBase(BaseModel):
+    summary: str = Field(..., description="A short summary of the schedule modification.")
+    reason: str = Field(..., description="The rationale or reasoning behind why this change was made.")
+
+class ChangeLogInDB(ChangeLogBase):
+    id: str = Field(..., alias="_id")
+    username: str
+    timestamp: datetime
+
+class ChangeLogResponse(ChangeLogBase):
+    id: str
+    username: str
+    timestamp: datetime
+
