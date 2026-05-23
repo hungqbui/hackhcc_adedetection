@@ -171,11 +171,12 @@ async def generate_master_schedule(
 @router.post("/scan", response_model=MedicationResponse)
 async def scan_medication(
     image: UploadFile = File(None),
+    audio: UploadFile = File(None),
     drug_name: str = Form(None),
     current_user: dict = Depends(get_current_user)
 ):
-    if not image and not drug_name:
-        raise HTTPException(status_code=400, detail="Must provide either an image or a drug_name")
+    if not image and not drug_name and not audio:
+        raise HTTPException(status_code=400, detail="Must provide an image, audio, or a drug_name")
 
     # Fetch user's existing medications for interaction check comparison
     existing_meds_cursor = medication_collection.find({"username": current_user["username"]})
@@ -231,6 +232,32 @@ async def scan_medication(
                     target_drug_name = extracted_name
             except Exception as e:
                 print(f"Error extracting drug name from image: {e}")
+
+    if audio:
+        audio_bytes = await audio.read()
+        encoded_audio = base64.b64encode(audio_bytes).decode("utf-8")
+        mime_type = audio.content_type or "audio/webm"
+        
+        if not target_drug_name:
+            transcription_prompt = (
+                "Listen to this audio clip and extract the name of the medication mentioned. "
+                "Respond with ONLY the name of the drug. If you cannot identify the drug, respond with 'unknown'."
+            )
+            try:
+                transcription_response = llm.invoke([
+                    HumanMessage(content=[
+                        {"type": "text", "text": transcription_prompt},
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:{mime_type};base64,{encoded_audio}"}
+                        }
+                    ])
+                ])
+                extracted_name = transcription_response.content.strip()
+                if extracted_name.lower() != "unknown" and len(extracted_name) < 100:
+                    target_drug_name = extracted_name
+            except Exception as e:
+                print(f"Error extracting drug name from audio: {e}")
 
     # 2. Consult openFDA API using the drug name
     fda_data = None

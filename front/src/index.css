@@ -232,3 +232,37 @@ code {
 .high-contrast [class*='bg-green'] { background-color: #065f46 !important; }
 .high-contrast [class*='bg-red'],
 .high-contrast [class*='bg-rose'] { background-color: #7f1d1d !important; }
+
+/* Minimalistic Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.3); /* slate-400 @ 30% */
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.5); /* slate-400 @ 50% */
+}
+
+/* Dark mode scrollbars */
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.3); /* slate-500 @ 30% */
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.5); /* slate-500 @ 50% */
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.3) transparent;
+}

@@ -29,7 +29,7 @@ async def register_user(user: UserCreate):
 
 @router.post("/login", response_model=Token)
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
-    print(form_data)
+    
     user_dict = await user_collection.find_one({"username": form_data.username})
     if not user_dict:
         raise HTTPException(

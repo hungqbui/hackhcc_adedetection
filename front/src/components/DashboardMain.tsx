@@ -5,6 +5,7 @@ import {
   AlertTriangle,
   Pill,
   RefreshCw,
+  ChevronLeft,
   ChevronRight,
   Bell,
   ShieldCheck,
@@ -227,6 +228,19 @@ interface DashboardMainProps {
 export default function DashboardMain({ onNavigate, medications, onFetchMeds }: DashboardMainProps) {
   const [doses, setDoses] = useState<TodayDose[]>([])
   const [selectedMed, setSelectedMed] = useState<Medication | null>(null)
+  const [medPage, setMedPage] = useState(1)
+  const medsPerPage = 5
+  const totalMedPages = Math.max(1, Math.ceil(medications.length / medsPerPage))
+
+  // Ensure current page is valid when medications count changes
+  useEffect(() => {
+    if (medPage > totalMedPages) {
+      setMedPage(totalMedPages)
+    }
+  }, [medications.length, totalMedPages, medPage])
+
+  const startIndex = (medPage - 1) * medsPerPage
+  const paginatedMedications = medications.slice(startIndex, startIndex + medsPerPage)
 
   const today = new Date()
   const todayKey = `taken_doses_${today.toISOString().split('T')[0]}`
@@ -411,16 +425,16 @@ export default function DashboardMain({ onNavigate, medications, onFetchMeds }: 
                     }}
                     className="cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl bg-slate-50/60 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
                   >
-                    <div className="flex items-start gap-3">
-                      <div className="flex-shrink-0">
+                    <div className="flex items-start gap-3 min-w-0">
+                      <div className="min-w-0 flex-1">
                         <p className="text-xs font-bold text-slate-500 dark:text-slate-400">{dose.label}</p>
-                        <p className="font-bold text-slate-900 dark:text-white text-base mt-0.5 flex items-center gap-1.5">
-                          {dose.name}
-                          <span className="text-[9px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 px-1.5 py-0.5 rounded border border-blue-200 dark:border-blue-500/20 flex items-center gap-0.5">
+                        <p className="font-bold text-slate-900 dark:text-white text-base mt-0.5 flex flex-wrap items-center gap-1.5">
+                          <span className="break-words">{dose.name}</span>
+                          <span className="text-[9px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 px-1.5 py-0.5 rounded border border-blue-200 dark:border-blue-500/20 flex items-center gap-0.5 flex-shrink-0">
                             <Sparkles size={8} /> AI Insight
                           </span>
                         </p>
-                        <p className="text-xs text-slate-500 mt-0.5">
+                        <p className="text-xs text-slate-500 mt-0.5 break-words whitespace-normal">
                           {dose.dosage} • <span className="font-semibold text-slate-600 dark:text-slate-400">{dose.purpose}</span>
                         </p>
                       </div>
@@ -504,7 +518,7 @@ export default function DashboardMain({ onNavigate, medications, onFetchMeds }: 
           </div>
         </div>
         <div className="divide-y divide-slate-50 dark:divide-slate-800">
-          {medications.map(med => (
+          {paginatedMedications.map(med => (
             <div
               key={med.id}
               onClick={() => setSelectedMed(med)}
@@ -538,6 +552,27 @@ export default function DashboardMain({ onNavigate, medications, onFetchMeds }: 
             </div>
           ))}
         </div>
+        {totalMedPages > 1 && (
+          <div className="flex items-center justify-between px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/20 dark:bg-slate-900/10">
+            <button
+              onClick={() => setMedPage(prev => Math.max(prev - 1, 1))}
+              disabled={medPage === 1}
+              className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/50 disabled:opacity-40 disabled:cursor-not-allowed text-slate-600 dark:text-slate-300 transition-colors shadow-sm"
+            >
+              <ChevronLeft size={14} /> Previous
+            </button>
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+              Page {medPage} of {totalMedPages}
+            </span>
+            <button
+              onClick={() => setMedPage(prev => Math.min(prev + 1, totalMedPages))}
+              disabled={medPage === totalMedPages}
+              className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/50 disabled:opacity-40 disabled:cursor-not-allowed text-slate-600 dark:text-slate-300 transition-colors shadow-sm"
+            >
+              Next <ChevronRight size={14} />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* ── AI MEDICATION INSIGHTS MODAL ───────────────────────── */}

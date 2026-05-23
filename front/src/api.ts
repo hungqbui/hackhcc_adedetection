@@ -56,6 +56,20 @@ export interface ChatResponse {
   reply: string;
 }
 
+export interface MedicationAdvisingInfo {
+  id: string;
+  name: string;
+  purpose: string;
+  dosage: string;
+  frequency: string;
+  similarity: number;
+}
+
+export interface ChatAdvisingResponse {
+  reply: string;
+  retrieved_medications: MedicationAdvisingInfo[];
+}
+
 export interface Token {
   access_token: string;
   token_type: string;
@@ -146,13 +160,16 @@ export const medeaseApi = {
   // Medication Operations
   medications: {
     // Scan a bottle label photo and/or verify name to auto-register via Gemini AI + openFDA
-    scan: async (imageFile: File | null, drugName?: string): Promise<MedicationResponse> => {
+    scan: async (imageFile: File | null, drugName?: string, audioFile?: File | null): Promise<MedicationResponse> => {
       const formData = new FormData();
       if (imageFile) {
         formData.append('image', imageFile);
       }
       if (drugName) {
         formData.append('drug_name', drugName);
+      }
+      if (audioFile) {
+        formData.append('audio', audioFile);
       }
 
       return apiRequest<MedicationResponse>('/medications/scan', {
@@ -212,6 +229,20 @@ export const medeaseApi = {
       return apiRequest<ChatResponse>('/chat/', {
         method: 'POST',
         body: JSON.stringify({ message }),
+      });
+    },
+    advising: async (message: string, imageFile?: File | null, audioFile?: File | null): Promise<ChatAdvisingResponse> => {
+      const formData = new FormData();
+      formData.append('message', message);
+      if (imageFile) {
+        formData.append('image', imageFile);
+      }
+      if (audioFile) {
+        formData.append('audio', audioFile);
+      }
+      return apiRequest<ChatAdvisingResponse>('/chat/chat_advising', {
+        method: 'POST',
+        body: formData,
       });
     }
   }
