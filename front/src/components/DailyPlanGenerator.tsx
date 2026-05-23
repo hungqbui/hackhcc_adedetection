@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
 import {
   Sun, Moon, Coffee, Utensils, Clock, CheckCircle2, AlertTriangle,
-  Sparkles, ChevronDown, ChevronUp, Calendar
+  Sparkles, ChevronDown, ChevronUp, Calendar, Pill
 } from 'lucide-react'
+import { medeaseApi } from '../api'
+import type { GeneratedMasterSchedule } from '../api'
 import SpotlightCard from './react-bits/SpotlightCard'
 
 interface Medication {
@@ -26,18 +28,6 @@ interface ScheduledDose {
   taken: boolean
 }
 
-function toMinutes(timeStr: string): number {
-  const [h, m] = timeStr.split(':').map(Number)
-  return h * 60 + m
-}
-
-function addMinutes(timeStr: string, mins: number): string {
-  const total = toMinutes(timeStr) + mins
-  const h = Math.floor(total / 60) % 24
-  const m = total % 60
-  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`
-}
-
 function formatTime(timeStr: string): string {
   const [h, m] = timeStr.split(':').map(Number)
   const ampm = h >= 12 ? 'PM' : 'AM'
@@ -45,78 +35,37 @@ function formatTime(timeStr: string): string {
   return `${hour}:${m.toString().padStart(2, '0')} ${ampm}`
 }
 
-const DRUG_HINTS: Record<string, string> = {
-  metformin: 'Take with meals to minimize nausea and GI upset.',
-  ibuprofen: 'Take with food or milk — avoid on an empty stomach.',
-  aspirin: 'Take in the morning for optimal cardioprotective effect.',
-  lisinopril: 'Best taken in the morning; avoid potassium supplements.',
-  warfarin: 'Consistent timing is critical — take at the same time daily.',
-  omeprazole: 'Take 30–60 minutes before a meal for best effect.',
-  default: 'Take with a full glass of water at the scheduled time.'
-}
-
-function getReason(medName: string, freq: string): string {
-  const key = medName.toLowerCase()
-  for (const drugKey of Object.keys(DRUG_HINTS)) {
-    if (drugKey !== 'default' && key.includes(drugKey)) return DRUG_HINTS[drugKey]
-  }
-  if (freq.toLowerCase().includes('food') || freq.toLowerCase().includes('meal')) {
-    return 'Best taken with food to reduce gastrointestinal side effects.'
-  }
-  return DRUG_HINTS['default']
-}
-
-function generateSchedule(
-  medications: Medication[],
-  wakeTime: string,
-  sleepTime: string,
-  breakfast: string,
-  lunch: string,
-  dinner: string
+function mapBackendScheduleToDoses(
+  backendSchedule: GeneratedMasterSchedule,
+  medications: Medication[]
 ): ScheduledDose[] {
   const doses: ScheduledDose[] = []
 
-  medications.forEach(med => {
-    const freq = med.frequency.toLowerCase()
-    const reason = getReason(med.name, med.notes || '')
+  backendSchedule.slots.forEach((slot, slotIdx) => {
+    slot.medication_names.forEach((medName, medIdx) => {
+      // Find matching medication in medications list to get its dosage and other details
+      const foundMed = medications.find(m => m.name.toLowerCase() === medName.toLowerCase()) || 
+                       medications.find(m => m.name.toLowerCase().includes(medName.toLowerCase())) || 
+                       medications.find(m => medName.toLowerCase().includes(m.name.toLowerCase()))
 
-    const push = (time: string) => {
+      const dosage = foundMed ? foundMed.dosage : 'As directed'
+      const riskLevel = slot.interaction_warnings ? 'High' : 'Safe'
+      const reason = slot.instructions + (slot.interaction_warnings ? ` (Caution: ${slot.interaction_warnings})` : '')
+
       doses.push({
-        id: `${med.id}-${time}`,
-        name: med.name,
-        dosage: med.dosage,
-        time,
-        label: formatTime(time),
+        id: `${medName}-${slot.time}-${slotIdx}-${medIdx}`, // Ensure unique id
+        name: medName,
+        dosage,
+        time: slot.time,
+        label: formatTime(slot.time),
         reason,
-        riskLevel: med.riskLevel,
+        riskLevel,
         taken: false
       })
-    }
-
-    if (freq.includes('every 8 hours')) {
-      push(addMinutes(wakeTime, 30))
-      push(lunch)
-      push(addMinutes(sleepTime, -60))
-    } else if (freq.includes('twice') || freq.includes('morning/evening')) {
-      push(addMinutes(breakfast, 10))
-      push(addMinutes(dinner, 10))
-    } else if (freq.includes('three times')) {
-      push(addMinutes(breakfast, 10))
-      push(lunch)
-      push(addMinutes(dinner, 10))
-    } else if (freq.includes('morning')) {
-      push(addMinutes(wakeTime, 30))
-    } else if (freq.includes('noon') || freq.includes('lunch')) {
-      push(lunch)
-    } else if (freq.includes('evening')) {
-      push(addMinutes(dinner, 30))
-    } else if (freq.includes('bedtime')) {
-      push(addMinutes(sleepTime, -30))
-    } else {
-      push(addMinutes(wakeTime, 30))
-    }
+    })
   })
 
+  // Sort chronologically
   return doses.sort((a, b) => a.time.localeCompare(b.time))
 }
 
@@ -127,30 +76,78 @@ export default function DailyPlanGenerator() {
   const [breakfast, setBreakfast] = useState('07:30')
   const [lunch, setLunch] = useState('12:30')
   const [dinner, setDinner] = useState('18:30')
+  const [routineNotes, setRoutineNotes] = useState('')
   const [generatedDoses, setGeneratedDoses] = useState<ScheduledDose[]>([])
+  const [generalAdvice, setGeneralAdvice] = useState('')
   const [generated, setGenerated] = useState(false)
   const [showInputs, setShowInputs] = useState(true)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const today = new Date().toISOString().split('T')[0]
   const takenKey = `gen_taken_${today}`
 
   useEffect(() => {
-    const stored = localStorage.getItem('medications')
-    if (stored) {
-      try { setMedications(JSON.parse(stored)) } catch {}
+    const fetchLatestMeds = async () => {
+      try {
+        const dbMeds = await medeaseApi.medications.list()
+        if (dbMeds) {
+          const mappedMeds: Medication[] = dbMeds.map(res => ({
+            id: res.id,
+            name: res.name,
+            dosage: res.dosage,
+            frequency: res.frequency,
+            riskLevel: res.interactions_to_avoid && res.interactions_to_avoid.length > 0 ? 'High' : 'Safe',
+            notes: res.special_instructions || '',
+            times: res.reminder_times || []
+          }))
+          setMedications(mappedMeds)
+          localStorage.setItem('medications', JSON.stringify(mappedMeds))
+          return
+        }
+      } catch (err) {
+        console.error("Failed to fetch fresh medications:", err)
+      }
+
+      const stored = localStorage.getItem('medications')
+      if (stored) {
+        try { setMedications(JSON.parse(stored)) } catch {}
+      }
     }
+    fetchLatestMeds()
   }, [])
 
-  const handleGenerate = () => {
-    const savedTaken: string[] = (() => {
-      try { return JSON.parse(localStorage.getItem(takenKey) || '[]') } catch { return [] }
-    })()
+  const handleGenerate = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const savedTaken: string[] = (() => {
+        try { return JSON.parse(localStorage.getItem(takenKey) || '[]') } catch { return [] }
+      })()
 
-    const schedule = generateSchedule(medications, wakeTime, sleepTime, breakfast, lunch, dinner)
-    const withState = schedule.map(d => ({ ...d, taken: savedTaken.includes(d.id) }))
-    setGeneratedDoses(withState)
-    setGenerated(true)
-    setShowInputs(false)
+      const medicationIds = medications.map(m => m.id)
+      const backendSchedule = await medeaseApi.medications.generateSchedule(
+        medicationIds,
+        wakeTime,
+        sleepTime,
+        breakfast,
+        lunch,
+        dinner,
+        routineNotes || undefined
+      )
+
+      const schedule = mapBackendScheduleToDoses(backendSchedule, medications)
+      const withState = schedule.map(d => ({ ...d, taken: savedTaken.includes(d.id) }))
+      setGeneratedDoses(withState)
+      setGeneralAdvice(backendSchedule.general_advice)
+      setGenerated(true)
+      setShowInputs(false)
+    } catch (err: any) {
+      console.error("Failed to generate schedule from backend:", err)
+      setError(err?.message || "An unexpected error occurred while generating your schedule.")
+    } finally {
+      setLoading(false)
+    }
   }
 
   const toggleTaken = (id: string) => {
@@ -173,9 +170,37 @@ export default function DailyPlanGenerator() {
         <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
           Daily Plan Generator
         </h1>
-        <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
+        <p className="text-slate-600 dark:text-slate-300 text-md mt-1">
           Enter your daily routine — we'll intelligently schedule your medications around it.
         </p>
+      </div>
+
+      {/* Active Medications List */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-6 shadow-sm space-y-4">
+        <div className="flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
+          <Pill size={18} className="text-blue-500" />
+          <h2 className="font-bold text-slate-900 dark:text-white text-base">Your Active Medications</h2>
+        </div>
+        {medications.length === 0 ? (
+          <p className="text-sm text-slate-500 dark:text-slate-400 italic">No medications registered yet. Go to Add Medication to register some.</p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {medications.map(med => (
+              <div key={med.id} className="p-3.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl flex items-start gap-3 hover:border-blue-500/30 transition-colors">
+                <div className="p-2 rounded-lg bg-blue-500/10 text-blue-500 mt-0.5">
+                  <Pill size={16} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 dark:text-white text-sm">{med.name}</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{med.dosage} — {med.frequency}</p>
+                  {med.notes && (
+                    <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1 italic line-clamp-1">{med.notes}</p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Input Panel */}
@@ -232,20 +257,81 @@ export default function DailyPlanGenerator() {
               </div>
             </div>
 
+            {/* Daily Routine Notes */}
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-500 mb-1.5">
+                Daily Routine Notes
+              </label>
+              <textarea
+                value={routineNotes}
+                onChange={e => setRoutineNotes(e.target.value)}
+                placeholder="E.g., I sleep later on weekends, take medications with warm milk..."
+                rows={2}
+                className={`resize-none ${inputClass}`}
+              />
+            </div>
+
             <button
               onClick={handleGenerate}
-              disabled={medications.length === 0}
+              disabled={medications.length === 0 || loading}
               className="w-full py-3 font-bold text-sm rounded-xl bg-blue-600 hover:bg-blue-700 text-white transition-all shadow-md shadow-blue-500/20 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <Sparkles size={16} />
-              {medications.length === 0 ? 'No medications registered yet' : 'Generate My Schedule'}
+              {loading ? (
+                <div className="w-5 h-5 rounded-full border-2 border-white border-t-transparent animate-spin"></div>
+              ) : (
+                <Sparkles size={16} />
+              )}
+              {loading ? 'Analyzing & Generating...' : medications.length === 0 ? 'No medications registered yet' : 'Generate My Schedule'}
             </button>
           </div>
         )}
       </div>
 
+      {/* Error Banner */}
+      {error && (
+        <div className="p-4 bg-red-50 dark:bg-red-950/10 border border-red-200 dark:border-red-800/30 rounded-2xl flex items-start gap-3">
+          <AlertTriangle className="text-red-500 flex-shrink-0 mt-0.5" size={18} />
+          <div>
+            <h3 className="font-bold text-sm text-red-800 dark:text-red-400">Scheduling Failed</h3>
+            <p className="text-xs text-red-600 dark:text-red-500 mt-1">{error}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Loading Skeleton */}
+      {loading && (
+        <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-6 shadow-sm space-y-6">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-blue-500/10 text-blue-500 flex items-center justify-center animate-spin">
+              <Sparkles size={20} />
+            </div>
+            <div>
+              <div className="h-4 w-48 bg-slate-100 dark:bg-slate-850 rounded-lg animate-pulse"></div>
+              <p className="text-xs font-bold text-blue-600 dark:text-blue-400 animate-pulse mt-1">
+                ⚡ Gemini AI is analyzing interactions and generating your custom schedule...
+              </p>
+            </div>
+          </div>
+          <div className="space-y-4 animate-pulse">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="flex gap-4 items-start pl-3 border-l-2 border-slate-100 dark:border-slate-800 pb-4">
+                <div className="w-3 h-3 rounded-full bg-slate-200 dark:bg-slate-800 -ml-[7px] mt-2"></div>
+                <div className="flex-1 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-850 p-4 rounded-xl space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="h-3 w-16 bg-slate-200 dark:bg-slate-800 rounded"></div>
+                    <div className="h-5 w-20 bg-slate-200 dark:bg-slate-800 rounded-full"></div>
+                  </div>
+                  <div className="h-4 w-1/3 bg-slate-200 dark:bg-slate-800 rounded"></div>
+                  <div className="h-3.5 w-2/3 bg-slate-100 dark:bg-slate-800 rounded"></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Generated Schedule */}
-      {generated && (
+      {generated && !loading && (
         <div className="space-y-5">
           {/* Progress bar */}
           <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-5 shadow-sm flex items-center justify-between gap-4">
@@ -270,9 +356,28 @@ export default function DailyPlanGenerator() {
             </div>
           </div>
 
+          {/* General Advice Panel */}
+          {generalAdvice && (
+            <div className="bg-gradient-to-r from-blue-500/10 to-indigo-500/10 border border-blue-200/50 dark:border-blue-800/30 rounded-2xl p-5 shadow-sm space-y-2">
+              <div className="flex items-center gap-2 text-blue-700 dark:text-blue-400 font-bold text-sm uppercase tracking-wider">
+                <Sparkles size={16} className="text-blue-500 animate-pulse" />
+                <span>AI Pharmacist Advice</span>
+              </div>
+              <p className="text-slate-700 dark:text-slate-300 text-sm leading-relaxed whitespace-pre-line">
+                {generalAdvice}
+              </p>
+            </div>
+          )}
+
           {/* Timeline */}
           <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm p-6">
             <h2 className="font-bold text-slate-900 dark:text-white text-base mb-5">Generated Timeline</h2>
+
+            {routineNotes && (
+              <div className="mb-5 p-3.5 bg-blue-50/50 dark:bg-blue-950/10 border border-blue-100 dark:border-blue-900/20 rounded-xl text-xs text-slate-600 dark:text-slate-400">
+                <span className="font-bold text-slate-700 dark:text-slate-300">Routine Notes:</span> {routineNotes}
+              </div>
+            )}
 
             <ol className="relative border-l-2 border-slate-100 dark:border-slate-800 ml-3 space-y-0">
               {generatedDoses.map((dose, idx) => {

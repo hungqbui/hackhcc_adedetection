@@ -48,10 +48,7 @@ export default function AddMedication({ onMedicationAdded }: AddMedicationProps)
   const [formData, setFormData] = useState({
     name: '',
     dosage: '',
-    frequency: 'daily',
     purpose: '',
-    startDate: new Date().toISOString().split('T')[0],
-    endDate: '',
     notes: ''
   })
   const [times, setTimes] = useState<string[]>(['08:00'])
@@ -173,8 +170,7 @@ export default function AddMedication({ onMedicationAdded }: AddMedicationProps)
         name: res.name,
         dosage: res.dosage || '400mg',
         purpose: res.purpose || 'Supplement',
-        notes: res.special_instructions || 'Scanned via AI bottle labels.',
-        frequency: res.frequency.toLowerCase().includes('custom') ? 'custom' : 'daily'
+        notes: res.special_instructions || 'Scanned via AI bottle labels.'
       }))
 
       if (res.reminder_times && res.reminder_times.length > 0) {
@@ -268,8 +264,7 @@ export default function AddMedication({ onMedicationAdded }: AddMedicationProps)
         name: res.name,
         dosage: res.dosage || '400mg',
         purpose: res.purpose || 'Supplement',
-        notes: res.special_instructions || 'Extracted via AI Voice: "I take magnesium 400mg every night."',
-        frequency: res.frequency.toLowerCase().includes('custom') ? 'custom' : 'daily'
+        notes: res.special_instructions || 'Extracted via AI Voice: "I take magnesium 400mg every night."'
       }))
 
       if (res.reminder_times && res.reminder_times.length > 0) {
@@ -360,9 +355,7 @@ export default function AddMedication({ onMedicationAdded }: AddMedicationProps)
     setLoading(true);
     setErrorMsg(null);
     try {
-      const freqLabel = formData.frequency === 'daily'
-        ? (times.length === 1 ? 'Once daily (Morning)' : `${times.length}x daily`)
-        : 'Custom schedule';
+      const freqLabel = times.length === 1 ? 'Once daily' : `${times.length}x daily`;
 
       // Map purpose dynamically to MedicationType
       const isSupplement = formData.purpose.toLowerCase().includes('supplement') || 
@@ -403,8 +396,7 @@ export default function AddMedication({ onMedicationAdded }: AddMedicationProps)
         dosage: res.dosage,
         frequency: res.frequency,
         purpose: res.purpose,
-        startDate: formData.startDate,
-        endDate: formData.endDate || undefined,
+        startDate: new Date().toISOString().split('T')[0],
         notes: res.special_instructions || '',
         riskLevel: 'Safe',
         sideEffects: res.side_effects,
@@ -421,7 +413,7 @@ export default function AddMedication({ onMedicationAdded }: AddMedicationProps)
       setSavedSuccess(true);
 
       setTimeout(() => {
-        setFormData({ name: '', dosage: '', frequency: 'daily', purpose: '', startDate: new Date().toISOString().split('T')[0], endDate: '', notes: '' });
+        setFormData({ name: '', dosage: '', purpose: '', notes: '' });
         setTimes(['08:00']);
         setSideEffects([]);
         setWhenToAvoid('');
@@ -628,84 +620,43 @@ export default function AddMedication({ onMedicationAdded }: AddMedicationProps)
             </div>
           </div>
 
-          {/* Dosage + Start/End Date */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div>
-              <label className={labelClass}>Dosage</label>
-              <div className="relative">
-                <Activity className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                <input type="text" name="dosage" value={formData.dosage}
-                  onChange={handleInputChange} placeholder="e.g. 400mg"
-                  className={`pl-9 ${inputClass}`}
-                />
-              </div>
-            </div>
-            <div>
-              <label className={labelClass}>Start Date</label>
-              <div className="relative">
-                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                <input type="date" name="startDate" value={formData.startDate}
-                  onChange={handleInputChange} className={`pl-9 ${inputClass}`}
-                />
-              </div>
-            </div>
-            <div>
-              <label className={labelClass}>End Date</label>
-              <div className="relative">
-                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                <input type="date" name="endDate" value={formData.endDate}
-                  onChange={handleInputChange} className={`pl-9 ${inputClass}`}
-                />
-              </div>
+          {/* Dosage */}
+          <div>
+            <label className={labelClass}>Dosage</label>
+            <div className="relative">
+              <Activity className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+              <input type="text" name="dosage" value={formData.dosage}
+                onChange={handleInputChange} placeholder="e.g. 400mg"
+                className={`pl-9 ${inputClass}`}
+              />
             </div>
           </div>
 
-          {/* Frequency */}
-          <div>
-            <label className={labelClass}>Frequency</label>
-            <div className="flex gap-2 mb-3">
-              {['daily', 'custom'].map(opt => (
-                <button
-                  key={opt}
-                  type="button"
-                  onClick={() => setFormData(p => ({ ...p, frequency: opt }))}
-                  className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border capitalize transition-all ${
-                    formData.frequency === opt
-                      ? 'bg-blue-600 text-white border-blue-500 shadow-md shadow-blue-500/20'
-                      : 'bg-slate-50 dark:bg-slate-950 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:border-blue-400'
-                  }`}
-                >
-                  {opt === 'daily' ? 'Daily (Fixed)' : 'Custom Times'}
-                </button>
-              ))}
-            </div>
-
-            {/* Time Slots */}
-            <div className="space-y-2">
-              <label className={labelClass + ' mt-1'}>Times</label>
-              {times.map((t, idx) => (
-                <div key={idx} className="flex items-center gap-2">
-                  <div className="relative flex-1">
-                    <Clock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                    <input
-                      type="time" value={t}
-                      onChange={e => updateTime(idx, e.target.value)}
-                      className={`pl-9 ${inputClass}`}
-                    />
-                  </div>
-                  {times.length > 1 && (
-                    <button type="button" onClick={() => removeTime(idx)}
-                      className="p-2 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors">
-                      <X size={15} />
-                    </button>
-                  )}
+          {/* Recommendation Time Slots */}
+          <div className="space-y-2">
+            <label className={labelClass}>Recommendation Time</label>
+            {times.map((t, idx) => (
+              <div key={idx} className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <Clock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                  <input
+                    type="time" value={t}
+                    onChange={e => updateTime(idx, e.target.value)}
+                    className={`pl-9 ${inputClass}`}
+                  />
                 </div>
-              ))}
-              <button type="button" onClick={addTime}
-                className="flex items-center gap-1.5 text-xs font-semibold text-blue-500 hover:text-blue-600 mt-1 transition-colors">
-                <Plus size={13} /> Add another time
-              </button>
-            </div>
+                {times.length > 1 && (
+                  <button type="button" onClick={() => removeTime(idx)}
+                    className="p-2 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors">
+                    <X size={15} />
+                  </button>
+                )}
+              </div>
+            ))}
+            <button type="button" onClick={addTime}
+              className="flex items-center gap-1.5 text-xs font-semibold text-blue-500 hover:text-blue-600 mt-1 transition-colors">
+              <Plus size={13} /> Add another time
+            </button>
           </div>
 
           {/* Purpose */}
