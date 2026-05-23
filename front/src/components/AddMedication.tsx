@@ -173,8 +173,9 @@ export default function AddMedication({ onMedicationAdded }: AddMedicationProps)
         notes: res.special_instructions || 'Scanned via AI bottle labels.'
       }))
 
-      if (res.reminder_times && res.reminder_times.length > 0) {
-        setTimes(res.reminder_times)
+      const timesVal = res.optimal_time || res.reminder_times
+      if (timesVal && timesVal.length > 0) {
+        setTimes(timesVal)
       } else {
         setTimes(['21:00'])
       }
@@ -214,8 +215,9 @@ export default function AddMedication({ onMedicationAdded }: AddMedicationProps)
         frequency: res.frequency.toLowerCase().includes('custom') ? 'custom' : 'daily'
       }))
 
-      if (res.reminder_times && res.reminder_times.length > 0) {
-        setTimes(res.reminder_times)
+      const timesVal = res.optimal_time || res.reminder_times
+      if (timesVal && timesVal.length > 0) {
+        setTimes(timesVal)
       } else {
         setTimes(['21:00'])
       }
@@ -267,8 +269,9 @@ export default function AddMedication({ onMedicationAdded }: AddMedicationProps)
         notes: res.special_instructions || 'Extracted via AI Voice: "I take magnesium 400mg every night."'
       }))
 
-      if (res.reminder_times && res.reminder_times.length > 0) {
-        setTimes(res.reminder_times)
+      const timesVal = res.optimal_time || res.reminder_times
+      if (timesVal && timesVal.length > 0) {
+        setTimes(timesVal)
       } else {
         setTimes(['21:00'])
       }
@@ -308,8 +311,9 @@ export default function AddMedication({ onMedicationAdded }: AddMedicationProps)
         frequency: res.frequency.toLowerCase().includes('custom') ? 'custom' : 'daily'
       }))
 
-      if (res.reminder_times && res.reminder_times.length > 0) {
-        setTimes(res.reminder_times)
+      const timesVal = res.optimal_time || res.reminder_times
+      if (timesVal && timesVal.length > 0) {
+        setTimes(timesVal)
       } else {
         setTimes(['21:00'])
       }
@@ -371,7 +375,7 @@ export default function AddMedication({ onMedicationAdded }: AddMedicationProps)
         dosage: formData.dosage || 'N/A',
         frequency: freqLabel,
         reminder_times: times,
-        optimal_time: ['morning'], // Default placeholder
+        optimal_time: times,
         with_food: formData.notes.toLowerCase().includes('food') || formData.notes.toLowerCase().includes('meal'),
         interactions_to_avoid: foodInteractions ? foodInteractions.split(',').map(s => s.trim()) : [],
         special_instructions: formData.notes || undefined,
@@ -400,7 +404,7 @@ export default function AddMedication({ onMedicationAdded }: AddMedicationProps)
         notes: res.special_instructions || '',
         riskLevel: 'Safe',
         sideEffects: res.side_effects,
-        times: res.reminder_times,
+        times: res.optimal_time || res.reminder_times || [],
         whenToAvoid: res.when_to_avoid,
         foodInteractions: res.interactions_to_avoid?.join(', '),
         simplifiedExplanation: res.simplified_explanation

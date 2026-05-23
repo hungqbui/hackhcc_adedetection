@@ -99,7 +99,7 @@ export default function DailyPlanGenerator() {
             frequency: res.frequency,
             riskLevel: res.interactions_to_avoid && res.interactions_to_avoid.length > 0 ? 'High' : 'Safe',
             notes: res.special_instructions || '',
-            times: res.reminder_times || []
+            times: res.optimal_time || res.reminder_times || []
           }))
           setMedications(mappedMeds)
           localStorage.setItem('medications', JSON.stringify(mappedMeds))

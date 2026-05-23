@@ -75,24 +75,8 @@ class MedicationBase(BaseModel):
         if not v:
             return []
         if isinstance(v, str):
-            v = [v]
-        validated = []
-        for item in v:
-            if isinstance(item, str):
-                val = item.lower().strip().replace(" ", "_").replace("-", "_")
-                if val in ["morning", "afternoon", "evening", "night", "as_needed"]:
-                    validated.append(TimeOfDay(val))
-                elif "morning" in val:
-                    validated.append(TimeOfDay.MORNING)
-                elif "afternoon" in val:
-                    validated.append(TimeOfDay.AFTERNOON)
-                elif "evening" in val:
-                    validated.append(TimeOfDay.EVENING)
-                elif "night" in val or "bed" in val:
-                    validated.append(TimeOfDay.NIGHT)
-                elif "need" in val:
-                    validated.append(TimeOfDay.AS_NEEDED)
-        return list(set(validated))
+            return [v]
+        return v
 
 
 class MedicationCreate(MedicationBase):

@@ -24,7 +24,7 @@ export interface MedicationBase {
   type: MedicationType;
   dosage: string;
   frequency: string;
-  optimal_time?: TimeOfDay[];
+  optimal_time?: string[];
   reminder_times?: string[];
   with_food?: boolean;
   interactions_to_avoid?: string[];
