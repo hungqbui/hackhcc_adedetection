@@ -247,7 +247,7 @@ async def scan_medication(
         raise HTTPException(status_code=500, detail="GEMINI_API_KEY is not configured")
 
     llm = ChatGoogleGenerativeAI(
-        model="gemini-3.1-flash-lite",
+        model="gemini-3.5-flash",
         google_api_key=api_key,
         temperature=0.1 # Low temperature for factual accuracy
     )
@@ -281,7 +281,14 @@ async def scan_medication(
                         }
                     ])
                 ])
-                extracted_name = ocr_response.content.strip()
+                raw_content = ocr_response.content
+                if isinstance(raw_content, list):
+                    extracted_name = " ".join(
+                        block.get("text", "") if isinstance(block, dict) else str(block)
+                        for block in raw_content
+                    ).strip()
+                else:
+                    extracted_name = raw_content.strip()
                 if extracted_name.lower() != "unknown" and len(extracted_name) < 100:
                     target_drug_name = extracted_name
             except Exception as e:
