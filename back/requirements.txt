@@ -1,0 +1,12 @@
+fastapi
+uvicorn
+langchain
+langchain-google-genai
+pymongo[srv]
+bson
+python-multipart
+httpx
+python-jose[cryptography]
+passlib[bcrypt]
+python-dotenv
+google-generativeai
