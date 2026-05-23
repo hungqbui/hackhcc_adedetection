@@ -4,12 +4,9 @@ import {
   Calendar,
   Activity,
   CheckCircle2,
-<<<<<<< HEAD
   AlertOctagon,
   ShieldCheck,
   Search,
-=======
->>>>>>> 73b60ac4b317d97962406503f2493d4929fefb59
   Mic,
   MicOff,
   Plus,
@@ -68,7 +65,6 @@ export default function AddMedication({ onMedicationAdded }: AddMedicationProps)
   const [uploadedImagePreview, setUploadedImagePreview] = useState<string | null>(null)
   const [savedSuccess, setSavedSuccess] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
-<<<<<<< HEAD
   
   // Voice & Modality state
   const [isRecording, setIsRecording] = useState(false)
@@ -82,16 +78,13 @@ export default function AddMedication({ onMedicationAdded }: AddMedicationProps)
     recommendation?: string
     sideEffects?: string[]
   }>({ status: 'unchecked', riskLevel: 'Safe' })
-=======
   const [sideEffects, setSideEffects] = useState<string[]>([])
->>>>>>> 73b60ac4b317d97962406503f2493d4929fefb59
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target
     setFormData(prev => ({ ...prev, [name]: value }))
   }
 
-<<<<<<< HEAD
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
@@ -126,9 +119,6 @@ export default function AddMedication({ onMedicationAdded }: AddMedicationProps)
   }
 
   // Simulate basic voice input for simple micro button
-=======
-  // Dictate real drug names using browser Web Speech API
->>>>>>> 73b60ac4b317d97962406503f2493d4929fefb59
   const handleVoiceInput = () => {
     setErrorMsg(null)
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
@@ -299,7 +289,6 @@ export default function AddMedication({ onMedicationAdded }: AddMedicationProps)
       setSideEffects(sideEffects)
     } catch (err: any) {
       console.error('Voice transcription failed:', err)
-<<<<<<< HEAD
       setErrorMsg('Failed to process example voice dictation.')
     } finally {
       setIsListening(false)
@@ -357,9 +346,6 @@ export default function AddMedication({ onMedicationAdded }: AddMedicationProps)
     } catch (err: any) {
       console.error('Text scan failed:', err)
       setErrorMsg('Failed to process text search.')
-=======
-      setErrorMsg(err.message || 'Voice example failed. Please check backend connection.')
->>>>>>> 73b60ac4b317d97962406503f2493d4929fefb59
     } finally {
       setIsListening(false)
     }
@@ -479,19 +465,11 @@ export default function AddMedication({ onMedicationAdded }: AddMedicationProps)
       {/* ── AI SCAN & DICTATION CONTAINER ───────────────── */}
       <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
         <div className="flex items-center gap-2">
-<<<<<<< HEAD
           <Sparkles className="text-blue-500" size={18} />
           <h2 className="font-bold text-slate-800 dark:text-white text-base">AI Smart Scan & Dictation</h2>
         </div>
         <p className="text-xs text-slate-500 leading-relaxed max-w-xl">
           Use your camera to scan a pill bottle label, tap the microphone to dictate, or type the name below. Our AI automatically extracts dosage, purpose, and schedules it for you!
-=======
-          <Sparkles size={16} className="text-indigo-500 animate-pulse" />
-          <h2 className="font-bold text-slate-900 dark:text-white text-sm">AI Scanner & Dictation</h2>
-        </div>
-        <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-          Skip manual typing! Upload a bottle image or speak naturally.
->>>>>>> 73b60ac4b317d97962406503f2493d4929fefb59
         </p>
 
         {/* Text Modality Box */}
@@ -572,7 +550,6 @@ export default function AddMedication({ onMedicationAdded }: AddMedicationProps)
           </div>
 
           {/* Column B: Voice Input */}
-<<<<<<< HEAD
           <div className="border border-dashed border-slate-200 dark:border-slate-800 hover:border-blue-400/80 rounded-xl p-4 flex flex-col items-center justify-center text-center bg-slate-50/50 dark:bg-slate-950/20 transition-colors relative group min-h-[160px]">
             {isRecording ? (
               <>
@@ -602,19 +579,6 @@ export default function AddMedication({ onMedicationAdded }: AddMedicationProps)
               </button>
             )}
             
-=======
-          <div className="border border-dashed border-slate-200 dark:border-slate-800 hover:border-blue-400/80 rounded-xl p-4 flex flex-col items-center justify-center text-center bg-slate-50/50 dark:bg-slate-950/20 transition-colors relative group">
-            <Mic size={24} className="text-slate-400 group-hover:text-blue-500 transition-colors mb-2" />
-            <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">Voice Dictation Input</span>
-            <span className="text-[12px] text-slate-800 mt-1">Click to speak dosage info</span>
-            {/* Quick Example Button */}
-            <button
-              onClick={handleExampleVoiceFlow}
-              className="mt-3 px-3 py-1.5 text-[12px] font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 text-blue-600 dark:text-blue-400 transition-all flex items-center gap-1.5"
-            >
-              <Mic size={11} /> Say: "I take magnesium 400mg every night."
-            </button>
->>>>>>> 73b60ac4b317d97962406503f2493d4929fefb59
             {isListening && (
               <div className="absolute inset-0 bg-white/90 dark:bg-slate-900/90 rounded-xl flex flex-col items-center justify-center gap-2">
                 <div className="flex gap-1 items-center justify-center h-4">
