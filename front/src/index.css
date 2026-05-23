@@ -198,5 +198,37 @@ code {
   html {
     @apply font-sans;
   }
-  
 }
+
+
+/* ===== Accessibility: High Contrast Mode ===== */
+.high-contrast,
+.high-contrast .bg-white,
+.high-contrast .bg-slate-50,
+.high-contrast .bg-slate-100,
+.high-contrast [class*='bg-slate'] {
+  background-color: #000 !important;
+}
+.high-contrast,
+.high-contrast [class*='text-slate'],
+.high-contrast [class*='text-gray'] {
+  color: #fff !important;
+}
+.high-contrast [class*='border-slate'],
+.high-contrast [class*='border-gray'] {
+  border-color: #fff !important;
+}
+.high-contrast [class*='text-indigo'],
+.high-contrast [class*='text-blue'] { color: #7dd3fc !important; }
+.high-contrast [class*='text-emerald'],
+.high-contrast [class*='text-green'] { color: #6ee7b7 !important; }
+.high-contrast [class*='text-red'],
+.high-contrast [class*='text-rose'] { color: #fca5a5 !important; }
+.high-contrast [class*='text-amber'],
+.high-contrast [class*='text-yellow'] { color: #fde68a !important; }
+.high-contrast [class*='bg-indigo'],
+.high-contrast [class*='bg-blue'] { background-color: #1e40af !important; }
+.high-contrast [class*='bg-emerald'],
+.high-contrast [class*='bg-green'] { background-color: #065f46 !important; }
+.high-contrast [class*='bg-red'],
+.high-contrast [class*='bg-rose'] { background-color: #7f1d1d !important; }

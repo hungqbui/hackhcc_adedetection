@@ -1,52 +1,47 @@
-import { useState } from 'react'
-import {
-  LayoutDashboard,
-  PlusCircle,
-  CalendarDays,
-  Bot,
-  User
-} from 'lucide-react'
-
-type View = 'dashboard' | 'add' | 'generator' | 'ai' | 'history' | 'profile'
+import { LayoutDashboard, PlusCircle, CalendarDays, Bot, History } from 'lucide-react'
+import type { View } from '../App'
 
 interface MobileNavProps {
   onNavigate: (view: View) => void
+  activeView: View
 }
 
-export default function MobileNav({ onNavigate }: MobileNavProps) {
-  const [activeView, setActiveView] = useState<View>('dashboard')
+const navItems: { view: View; label: string; icon: React.ElementType }[] = [
+  { view: 'dashboard', label: 'Today', icon: LayoutDashboard },
+  { view: 'add', label: 'Add', icon: PlusCircle },
+  { view: 'generator', label: 'Plan', icon: CalendarDays },
+  { view: 'ai', label: 'AI', icon: Bot },
+  { view: 'history', label: 'History', icon: History },
+]
 
-  const navItems = [
-    { view: 'dashboard' as View, label: 'Dashboard', icon: LayoutDashboard },
-    { view: 'add' as View, label: 'Add', icon: PlusCircle },
-    { view: 'generator' as View, label: 'Schedule', icon: CalendarDays },
-    { view: 'ai' as View, label: 'AI Advisor', icon: Bot },
-    { view: 'profile' as View, label: 'Profile', icon: User }
-  ]
-
-  const handleNavigate = (view: View) => {
-    setActiveView(view)
-    onNavigate(view)
-  }
-
+export default function MobileNav({ onNavigate, activeView }: MobileNavProps) {
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-lg border-t border-slate-800 px-4 py-2 z-40 flex items-center justify-around shadow-2xl shadow-indigo-500/10">
+    <nav
+      className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-t border-slate-200 dark:border-slate-800 px-2 py-2 z-40 flex items-center justify-around shadow-2xl shadow-blue-500/5"
+      aria-label="Mobile navigation"
+    >
       {navItems.map((item) => {
         const Icon = item.icon
         const isActive = activeView === item.view
         return (
           <button
             key={item.view}
-            onClick={() => handleNavigate(item.view)}
-            className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all duration-200 ${
-              isActive ? 'text-indigo-400' : 'text-slate-400 active:scale-95'
+            id={`mobile-nav-${item.view}`}
+            onClick={() => onNavigate(item.view)}
+            className={`flex flex-col items-center gap-0.5 py-1.5 px-3 rounded-xl transition-all duration-200 ${
+              isActive
+                ? 'text-blue-600 dark:text-blue-400'
+                : 'text-slate-400 dark:text-slate-500 active:scale-95'
             }`}
+            aria-label={item.label}
           >
-            <Icon
-              size={20}
-              className={`transition-transform duration-200 ${isActive ? 'scale-110 text-indigo-400' : 'text-slate-400'}`}
-            />
-            <span className="text-[10px] font-medium tracking-wide">
+            <div className={`p-1 rounded-lg transition-all duration-200 ${isActive ? 'bg-blue-50 dark:bg-blue-500/10' : ''}`}>
+              <Icon
+                size={19}
+                className={`transition-all duration-200 ${isActive ? 'scale-110' : ''}`}
+              />
+            </div>
+            <span className={`text-[10px] font-semibold ${isActive ? 'text-blue-600 dark:text-blue-400' : ''}`}>
               {item.label}
             </span>
           </button>
