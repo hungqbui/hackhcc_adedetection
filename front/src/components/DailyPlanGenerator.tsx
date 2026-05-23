@@ -1,11 +1,16 @@
 import { useState, useEffect } from 'react'
 import {
   Sun, Moon, Coffee, Utensils, Clock, CheckCircle2, AlertTriangle,
-  Sparkles, ChevronDown, ChevronUp, Calendar, Pill
+  Sparkles, ChevronDown, ChevronUp, Calendar, Pill, RefreshCw
 } from 'lucide-react'
 import { medeaseApi } from '../api'
 import type { GeneratedMasterSchedule } from '../api'
 import SpotlightCard from './react-bits/SpotlightCard'
+import type { View } from '../App'
+
+interface DailyPlanGeneratorProps {
+  onNavigate?: (view: View) => void
+}
 
 interface Medication {
   id: string
@@ -19,6 +24,7 @@ interface Medication {
 
 interface ScheduledDose {
   id: string
+  medId?: string
   name: string
   dosage: string
   time: string
@@ -54,6 +60,7 @@ function mapBackendScheduleToDoses(
 
       doses.push({
         id: `${medName}-${slot.time}-${slotIdx}-${medIdx}`, // Ensure unique id
+        medId: foundMed?.id,
         name: medName,
         dosage,
         time: slot.time,
@@ -69,7 +76,7 @@ function mapBackendScheduleToDoses(
   return doses.sort((a, b) => a.time.localeCompare(b.time))
 }
 
-export default function DailyPlanGenerator() {
+export default function DailyPlanGenerator({ onNavigate }: DailyPlanGeneratorProps) {
   const [medications, setMedications] = useState<Medication[]>([])
   const [selectedMedIds, setSelectedMedIds] = useState<string[]>([])
   const [wakeTime, setWakeTime] = useState('07:00')
@@ -88,12 +95,16 @@ export default function DailyPlanGenerator() {
   const today = new Date().toISOString().split('T')[0]
   const takenKey = `gen_taken_${today}`
 
+  const [persisting, setPersisting] = useState(false)
+  const [persistSuccess, setPersistSuccess] = useState(false)
+
   useEffect(() => {
     const fetchLatestMeds = async () => {
       try {
         const dbMeds = await medeaseApi.medications.list()
+        let parsedMeds: Medication[] = []
         if (dbMeds) {
-          const mappedMeds: Medication[] = dbMeds.map(res => ({
+          parsedMeds = dbMeds.map(res => ({
             id: res.id,
             name: res.name,
             dosage: res.dosage,
@@ -102,22 +113,37 @@ export default function DailyPlanGenerator() {
             notes: res.special_instructions || '',
             times: res.optimal_time || res.reminder_times || []
           }))
-          setMedications(mappedMeds)
-          setSelectedMedIds(mappedMeds.map(m => m.id))
-          localStorage.setItem('medications', JSON.stringify(mappedMeds))
-          return
+          setMedications(parsedMeds)
+          setSelectedMedIds(parsedMeds.map(m => m.id))
+          localStorage.setItem('medications', JSON.stringify(parsedMeds))
+        } else {
+          const stored = localStorage.getItem('medications')
+          if (stored) {
+            try {
+              parsedMeds = JSON.parse(stored)
+              setMedications(parsedMeds)
+              setSelectedMedIds(parsedMeds.map((m: any) => m.id))
+            } catch {}
+          }
+        }
+
+        // Try to load the persisted schedule if we have medications
+        if (parsedMeds.length > 0) {
+          try {
+            const savedSchedule = await medeaseApi.medications.getPersistedSchedule()
+            if (savedSchedule && savedSchedule.slots && savedSchedule.slots.length > 0) {
+              const doses = mapBackendScheduleToDoses(savedSchedule, parsedMeds)
+              setGeneratedDoses(doses)
+              setGeneralAdvice(savedSchedule.general_advice)
+              setGenerated(true)
+              setShowInputs(false)
+            }
+          } catch (e) {
+            console.log("No persisted schedule found on mount.")
+          }
         }
       } catch (err) {
         console.error("Failed to fetch fresh medications:", err)
-      }
-
-      const stored = localStorage.getItem('medications')
-      if (stored) {
-        try {
-          const parsed = JSON.parse(stored)
-          setMedications(parsed)
-          setSelectedMedIds(parsed.map((m: any) => m.id))
-        } catch {}
       }
     }
     fetchLatestMeds()
@@ -166,6 +192,107 @@ export default function DailyPlanGenerator() {
     setGeneratedDoses(updated)
     const takenIds = updated.filter(d => d.taken).map(d => d.id)
     localStorage.setItem(takenKey, JSON.stringify(takenIds))
+  }
+
+  const handleTimeChange = (id: string, newTime: string) => {
+    setGeneratedDoses(prev =>
+      prev.map(d => (d.id === id ? { ...d, time: newTime, label: formatTime(newTime) } : d))
+    )
+  }
+
+  const handlePersistSchedule = async () => {
+    setPersisting(true)
+    setPersistSuccess(false)
+    setError(null)
+    try {
+      const slotsMap: Record<string, { medicationNames: string[]; instructions: string[]; warnings: string[] }> = {}
+      generatedDoses.forEach(dose => {
+        const t = dose.time
+        if (!slotsMap[t]) {
+          slotsMap[t] = { medicationNames: [], instructions: [], warnings: [] }
+        }
+        if (!slotsMap[t].medicationNames.includes(dose.name)) {
+          slotsMap[t].medicationNames.push(dose.name)
+        }
+        let inst = dose.reason
+        let warn = ''
+        if (inst.includes(' (Caution: ')) {
+          const parts = inst.split(' (Caution: ')
+          inst = parts[0]
+          warn = parts[1].replace(')', '')
+        }
+        if (inst && !slotsMap[t].instructions.includes(inst)) {
+          slotsMap[t].instructions.push(inst)
+        }
+        if (warn && !slotsMap[t].warnings.includes(warn)) {
+          slotsMap[t].warnings.push(warn)
+        }
+      })
+
+      const slots = Object.entries(slotsMap).map(([time, data]) => ({
+        time,
+        medication_names: data.medicationNames,
+        instructions: data.instructions.join(', ') || 'Take medication',
+        interaction_warnings: data.warnings.join(', ') || undefined
+      }))
+
+      slots.sort((a, b) => a.time.localeCompare(b.time))
+
+      await medeaseApi.medications.persistSchedule(slots, generalAdvice)
+
+      const medTimesMap: Record<string, string[]> = {}
+      generatedDoses.forEach(dose => {
+        if (dose.medId) {
+          if (!medTimesMap[dose.medId]) {
+            medTimesMap[dose.medId] = []
+          }
+          if (!medTimesMap[dose.medId].includes(dose.time)) {
+            medTimesMap[dose.medId].push(dose.time)
+          }
+        }
+      })
+
+      const updatePromises = selectedMedIds.map(async medId => {
+        const times = medTimesMap[medId] || []
+        times.sort()
+        return medeaseApi.medications.updateTimes(medId, times)
+      })
+
+      const updatedMedsResponse = await Promise.all(updatePromises)
+
+      const updatedMeds = medications.map(med => {
+        const foundUpdated = updatedMedsResponse.find(r => r.id === med.id)
+        if (foundUpdated) {
+          return {
+            ...med,
+            times: foundUpdated.optimal_time || foundUpdated.reminder_times || []
+          }
+        }
+        return med
+      })
+
+      setMedications(updatedMeds)
+      localStorage.setItem('medications', JSON.stringify(updatedMeds))
+      setPersistSuccess(true)
+      setTimeout(() => {
+        setPersistSuccess(false)
+        if (onNavigate) {
+          onNavigate('dashboard')
+        }
+      }, 1500)
+    } catch (err: any) {
+      console.error("Failed to persist schedule:", err)
+      setError(err?.message || "Failed to persist schedule.")
+    } finally {
+      setPersisting(false)
+    }
+  }
+
+  const handleRecreate = () => {
+    setGenerated(false)
+    setGeneratedDoses([])
+    setGeneralAdvice('')
+    setShowInputs(true)
   }
 
   const takenCount = generatedDoses.filter(d => d.taken).length
@@ -404,7 +531,33 @@ export default function DailyPlanGenerator() {
 
           {/* Timeline */}
           <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm p-6">
-            <h2 className="font-bold text-slate-900 dark:text-white text-base mb-5">Generated Timeline</h2>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5 border-b border-slate-100 dark:border-slate-800 pb-4">
+              <div>
+                <h2 className="font-extrabold text-slate-900 dark:text-white text-base">Generated Timeline</h2>
+                <p className="text-xs text-slate-500 mt-0.5">Edit slot times below to customize your schedule, then click persist.</p>
+              </div>
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                <button
+                  onClick={handleRecreate}
+                  className="flex-shrink-0 flex items-center justify-center gap-1.5 px-4 py-2.5 text-xs font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl transition-all shadow-sm"
+                >
+                  <RefreshCw size={14} />
+                  Recreate Schedule
+                </button>
+                <button
+                  onClick={handlePersistSchedule}
+                  disabled={persisting || generatedDoses.length === 0}
+                  className="flex-shrink-0 flex items-center justify-center gap-1.5 px-4 py-2.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition-all shadow-md shadow-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {persisting ? (
+                    <div className="w-3.5 h-3.5 rounded-full border-2 border-white border-t-transparent animate-spin"></div>
+                  ) : (
+                    <CheckCircle2 size={12} />
+                  )}
+                  {persistSuccess ? 'Schedule Persisted!' : 'Persist Schedule to Dashboard'}
+                </button>
+              </div>
+            </div>
 
             {routineNotes && (
               <div className="mb-5 p-3.5 bg-blue-50/50 dark:bg-blue-950/10 border border-blue-100 dark:border-blue-900/20 rounded-xl text-xs text-slate-600 dark:text-slate-400">
@@ -435,7 +588,13 @@ export default function DailyPlanGenerator() {
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1">
                             <Clock size={12} className="text-slate-400 flex-shrink-0" />
-                            <span className="text-xs font-bold text-slate-500">{dose.label}</span>
+                            <input
+                              type="time"
+                              value={dose.time}
+                              disabled={dose.taken}
+                              onChange={e => handleTimeChange(dose.id, e.target.value)}
+                              className="bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2 py-0.5 text-[11px] font-bold text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500/40 w-20 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                            />
                             {dose.riskLevel === 'High' && !dose.taken && (
                               <span className="flex items-center gap-1 text-[10px] font-bold text-red-500 bg-red-50 dark:bg-red-500/10 px-1.5 py-0.5 rounded-full border border-red-200 dark:border-red-500/20">
                                 <AlertTriangle size={9} /> High Alert

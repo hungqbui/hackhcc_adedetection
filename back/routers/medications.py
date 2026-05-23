@@ -9,8 +9,8 @@ from langchain_core.messages import HumanMessage
 from bson import ObjectId
 
 from auth import get_current_user
-from models import MedicationCreate, MedicationInDB, MedicationResponse, GenerateScheduleRequest, GeneratedMasterSchedule
-from database import medication_collection
+from models import MedicationCreate, MedicationInDB, MedicationResponse, GenerateScheduleRequest, GeneratedMasterSchedule, SchedulePersistRequest, ScheduleResponse
+from database import medication_collection, schedule_collection
 
 router = APIRouter(prefix="/medications", tags=["medications"])
 
@@ -167,6 +167,42 @@ async def generate_master_schedule(
         return schedule
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to generate schedule: {str(e)}")
+
+@router.post("/schedule", response_model=ScheduleResponse)
+async def save_user_schedule(
+    request: SchedulePersistRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    now = datetime.now(timezone.utc)
+    await schedule_collection.update_one(
+        {"username": current_user["username"]},
+        {
+            "$set": {
+                "slots": [slot.model_dump() for slot in request.slots],
+                "general_advice": request.general_advice,
+                "updated_at": now
+            }
+        },
+        upsert=True
+    )
+    return ScheduleResponse(
+        slots=request.slots,
+        general_advice=request.general_advice,
+        updated_at=now
+    )
+
+@router.get("/schedule", response_model=ScheduleResponse)
+async def get_user_schedule(
+    current_user: dict = Depends(get_current_user)
+):
+    schedule = await schedule_collection.find_one({"username": current_user["username"]})
+    if not schedule:
+        raise HTTPException(status_code=404, detail="No persisted schedule found")
+    return ScheduleResponse(
+        slots=schedule["slots"],
+        general_advice=schedule["general_advice"],
+        updated_at=schedule["updated_at"]
+    )
 
 @router.post("/scan", response_model=MedicationResponse)
 async def scan_medication(

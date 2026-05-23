@@ -91,7 +91,8 @@ function App() {
           sideEffects: res.side_effects || [],
           whenToAvoid: res.when_to_avoid || '',
           foodInteractions: res.interactions_to_avoid?.join(', ') || '',
-          simplifiedExplanation: res.simplified_explanation || ''
+          simplifiedExplanation: res.simplified_explanation || '',
+          times: res.optimal_time || res.reminder_times || []
         }))
         setMedications(mappedMeds)
         localStorage.setItem('medications', JSON.stringify(mappedMeds))
@@ -227,7 +228,7 @@ function App() {
             />
           )}
           {view === 'add' && <AddMedication onMedicationAdded={fetchMedications} />}
-          {view === 'generator' && <DailyPlanGenerator />}
+          {view === 'generator' && <DailyPlanGenerator onNavigate={setView} />}
           {view === 'ai' && (
             <div className="h-[calc(100vh-140px)] md:h-[calc(100vh-100px)]">
               <AIPanel mobileMode={true} currentView={view} />
