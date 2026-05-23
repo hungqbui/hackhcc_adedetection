@@ -79,6 +79,7 @@ def cosine_similarity(v1: List[float], v2: List[float]) -> float:
 async def chat_advising(
     message: str = Form(...),
     image: Optional[UploadFile] = File(None),
+    audio: Optional[UploadFile] = File(None),
     current_user: dict = Depends(get_current_user)
 ):
     api_key = os.getenv("GEMINI_API_KEY")
@@ -144,6 +145,34 @@ async def chat_advising(
             )
         return result
 
+    @tool
+    async def check_missed_medications(dummy: str = "") -> str:
+        """Check the database for any medications the user might have missed taking today based on the current time. Use this when the user asks what they forgot, missed, or if they are behind on their schedule."""
+        from datetime import datetime
+        try:
+            now = datetime.now()
+            current_time_str = now.strftime("%H:%M")
+            
+            meds_cursor = medication_collection.find({"username": current_user["username"]})
+            meds = await meds_cursor.to_list(length=100)
+            
+            missed = []
+            for med in meds:
+                reminder_times = med.get("reminder_times", [])
+                for t in reminder_times:
+                    if t < current_time_str:
+                        missed.append(f"- {med.get('name')} ({med.get('dosage')}) scheduled at {t}")
+                        
+            if not missed:
+                return f"The current time is {current_time_str}. Based on the schedule, the patient has no missed medications so far today."
+            
+            return (
+                f"The current time is {current_time_str}. The patient has the following medications scheduled for earlier today "
+                f"that might have been missed if not taken:\n" + "\n".join(missed)
+            )
+        except Exception as e:
+            return f"Failed to check missed medications: {str(e)}"
+
     # 4. Construct prompt for Gemini
     prompt_text = (
         "You are MedEase AI, an expert medical advisor and pharmacist.\n"
@@ -163,6 +192,15 @@ async def chat_advising(
             "type": "image_url",
             "image_url": {"url": f"data:{mime_type};base64,{encoded_image}"}
         })
+        
+    if audio:
+        audio_bytes = await audio.read()
+        encoded_audio = base64.b64encode(audio_bytes).decode("utf-8")
+        mime_type = audio.content_type or "audio/webm"
+        message_content.append({
+            "type": "image_url",
+            "image_url": {"url": f"data:{mime_type};base64,{encoded_audio}"}
+        })
 
     messages = [HumanMessage(content=message_content)]
 
@@ -174,7 +212,7 @@ async def chat_advising(
             temperature=0.3,
             max_output_tokens=512
         )
-        llm_with_tools = llm.bind_tools([search_patient_medications])
+        llm_with_tools = llm.bind_tools([search_patient_medications, check_missed_medications])
         
         # First Invocation
         response = llm_with_tools.invoke(messages)
@@ -185,6 +223,12 @@ async def chat_advising(
             for tool_call in response.tool_calls:
                 if tool_call["name"] == "search_patient_medications":
                     tool_output = await search_patient_medications.ainvoke(tool_call["args"])
+                    messages.append(ToolMessage(
+                        content=str(tool_output),
+                        tool_call_id=tool_call["id"]
+                    ))
+                elif tool_call["name"] == "check_missed_medications":
+                    tool_output = await check_missed_medications.ainvoke(tool_call["args"])
                     messages.append(ToolMessage(
                         content=str(tool_output),
                         tool_call_id=tool_call["id"]

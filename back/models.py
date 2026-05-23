@@ -46,8 +46,7 @@ class MedicationBase(BaseModel):
     type: MedicationType
     dosage: str = Field(..., description="Amount and unit (e.g., '500 mg', '1 tablet')")
     frequency: str = Field(..., description="How often to take it (e.g., 'Once daily', 'Every 8 hours')")
-    optimal_time: List[TimeOfDay] = Field(default_factory=list, description="Optimal general time(s) of day to take")
-    reminder_times: List[str] = Field(default_factory=list, description="Specific recommended times to set push reminders, in HH:MM 24-hour format (e.g., ['08:00', '20:00'])")
+    optimal_time: List[TimeOfDay] = Field(default_factory=list, description="Specific recommended times to set push reminders, in HH:MM 24-hour format (e.g., ['08:00', '20:00'])")
     with_food: bool = Field(False, description="Whether it must be taken with food")
     interactions_to_avoid: List[str] = Field(default_factory=list, description="Known drug/food interactions to avoid")
     special_instructions: Optional[str] = Field(None, description="E.g., 'Take with a full glass of water'")
