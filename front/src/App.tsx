@@ -9,10 +9,11 @@ import MedicationHistory from './components/MedicationHistory'
 import ProfileView from './components/ProfileView'
 import SettingsView from './components/SettingsView'
 import LoginScreen from './components/LoginScreen'
+import MedicationsList from './components/MedicationsList'
 import { Contrast } from 'lucide-react'
-import { getAuthToken, removeAuthToken } from './api'
+import { getAuthToken, removeAuthToken, medeaseApi } from './api'
 
-export type View = 'dashboard' | 'add' | 'generator' | 'ai' | 'history' | 'profile' | 'settings'
+export type View = 'dashboard' | 'add' | 'generator' | 'ai' | 'history' | 'profile' | 'settings' | 'medications'
 
 export interface AccessibilitySettings {
   highContrast: boolean;
@@ -23,6 +24,48 @@ interface UserSession {
   email: string;
 }
 
+export interface Medication {
+  id: string
+  name: string
+  dosage: string
+  frequency: string
+  purpose: string
+  startDate: string
+  endDate?: string
+  notes?: string
+  riskLevel: 'Safe' | 'Moderate' | 'High'
+  sideEffects?: string[]
+  times?: string[]
+  whenToAvoid?: string
+  foodInteractions?: string
+  simplifiedExplanation?: string
+}
+
+const DEFAULT_MEDICATIONS: Medication[] = [
+  {
+    id: '1', name: 'Lisinopril', dosage: '10mg', frequency: 'Once daily (Morning)',
+    purpose: 'Hypertension', startDate: '2026-01-15', riskLevel: 'Safe',
+    sideEffects: ['Dry cough', 'Dizziness']
+  },
+  {
+    id: '2', name: 'Aspirin', dosage: '81mg', frequency: 'Once daily (Morning)',
+    purpose: 'Cardioprotection', startDate: '2026-02-10', riskLevel: 'High',
+    sideEffects: ['Stomach irritation', 'Easy bruising'],
+    notes: 'Interact warning: Co-administration with Ibuprofen increases gastrointestinal bleeding risks.'
+  },
+  {
+    id: '3', name: 'Ibuprofen', dosage: '400mg', frequency: 'Every 8 hours as needed',
+    purpose: 'Joint Pain', startDate: '2026-05-01', riskLevel: 'High',
+    sideEffects: ['Stomach ache', 'Nausea'],
+    notes: 'Interact warning: May reduce cardioprotective effect of low-dose Aspirin.'
+  },
+  {
+    id: '4', name: 'Metformin', dosage: '500mg', frequency: 'Twice daily (Morning/Evening)',
+    purpose: 'Type 2 Diabetes', startDate: '2026-03-01', riskLevel: 'Safe',
+    sideEffects: ['Nausea', 'Metabolism changes']
+  }
+]
+
 function App() {
   const [user, setUser] = useState<UserSession | null>(null)
   const [view, setView] = useState<View>('dashboard')
@@ -30,6 +73,56 @@ function App() {
   const [accessibility, setAccessibility] = useState<AccessibilitySettings>({
     highContrast: false,
   })
+  const [medications, setMedications] = useState<Medication[]>([])
+
+  const fetchMedications = async () => {
+    try {
+      const dbMeds = await medeaseApi.medications.list()
+      if (dbMeds) {
+        const mappedMeds: Medication[] = dbMeds.map(res => ({
+          id: res.id,
+          name: res.name,
+          dosage: res.dosage,
+          frequency: res.frequency,
+          purpose: res.purpose,
+          startDate: new Date(res.created_at).toISOString().split('T')[0],
+          notes: res.special_instructions || '',
+          riskLevel: res.interactions_to_avoid && res.interactions_to_avoid.length > 0 ? 'High' : 'Safe',
+          sideEffects: res.side_effects || [],
+          whenToAvoid: res.when_to_avoid || '',
+          foodInteractions: res.interactions_to_avoid?.join(', ') || '',
+          simplifiedExplanation: res.simplified_explanation || ''
+        }))
+        setMedications(mappedMeds)
+        localStorage.setItem('medications', JSON.stringify(mappedMeds))
+        return
+      }
+    } catch (err) {
+      console.error("Failed to fetch medications from backend, falling back to local storage:", err)
+    }
+
+    // Fallback to local storage if API call fails
+    const stored = localStorage.getItem('medications')
+    let meds: Medication[]
+    try {
+      meds = stored ? JSON.parse(stored) : DEFAULT_MEDICATIONS
+    } catch {
+      meds = DEFAULT_MEDICATIONS
+    }
+    if (!stored) localStorage.setItem('medications', JSON.stringify(meds))
+    setMedications(meds)
+  }
+
+  const handleDeleteMedication = async (id: string) => {
+    try {
+      await medeaseApi.medications.delete(id)
+    } catch (err) {
+      console.error("Failed to delete medication from backend:", err)
+    }
+    const updated = medications.filter(m => m.id !== id)
+    setMedications(updated)
+    localStorage.setItem('medications', JSON.stringify(updated))
+  }
 
   // Check if user is already logged in (has active token + saved identity)
   useEffect(() => {
@@ -45,6 +138,14 @@ function App() {
     }
   }, [])
 
+  useEffect(() => {
+    if (user) {
+      fetchMedications()
+    } else {
+      setMedications([])
+    }
+  }, [user])
+
   const handleLogout = () => {
     removeAuthToken()
     localStorage.removeItem('medease_username')
@@ -52,6 +153,17 @@ function App() {
     setUser(null)
     setView('dashboard')
   }
+
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      handleLogout()
+      alert('Your session has expired. Please log in again.')
+    }
+    window.addEventListener('medease-unauthorized', handleUnauthorized)
+    return () => {
+      window.removeEventListener('medease-unauthorized', handleUnauthorized)
+    }
+  }, [])
 
   const toggleAccessibility = (key: keyof AccessibilitySettings) => {
     setAccessibility(prev => ({ ...prev, [key]: !prev[key] }))
@@ -76,6 +188,8 @@ function App() {
         onCollapseToggle={() => setSidebarCollapsed((s) => !s)}
         onNavigate={(v: View) => setView(v)}
         activeView={view}
+        medications={medications}
+        onDeleteMedication={handleDeleteMedication}
       />
 
       {/* Main Content Area */}
@@ -98,8 +212,21 @@ function App() {
         </header>
 
         <main className="flex-1 p-4 md:p-8 pt-2 pb-24 md:pb-8 overflow-y-auto">
-          {view === 'dashboard' && <DashboardMain onNavigate={setView} />}
-          {view === 'add' && <AddMedication />}
+          {view === 'dashboard' && (
+            <DashboardMain
+              onNavigate={setView}
+              medications={medications}
+              onFetchMeds={fetchMedications}
+            />
+          )}
+          {view === 'medications' && (
+            <MedicationsList
+              medications={medications}
+              onDeleteMedication={handleDeleteMedication}
+              onNavigate={setView}
+            />
+          )}
+          {view === 'add' && <AddMedication onMedicationAdded={fetchMedications} />}
           {view === 'generator' && <DailyPlanGenerator />}
           {view === 'ai' && (
             <div className="h-[calc(100vh-140px)] md:h-[calc(100vh-100px)]">
