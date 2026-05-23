@@ -313,7 +313,10 @@ async def scan_medication(
                         }
                     ])
                 ])
-                extracted_name = transcription_response.content[0]["text"].strip()
+                if isinstance(transcription_response.content, list):
+                    extracted_name = transcription_response.content[0]["text"].strip()
+                else:
+                    extracted_name = transcription_response.content.strip()
                 print(extracted_name)
                 if extracted_name.lower() != "unknown" and len(extracted_name) < 100:
                     target_drug_name = extracted_name
