@@ -32,7 +32,6 @@ interface ScheduledDose {
   label: string
   reason: string
   riskLevel: 'Safe' | 'Moderate' | 'High'
-  taken: boolean
 }
 
 function formatTime(timeStr: string): string {
@@ -67,8 +66,7 @@ function mapBackendScheduleToDoses(
         time: slot.time,
         label: formatTime(slot.time),
         reason,
-        riskLevel,
-        taken: false
+        riskLevel
       })
     })
   })
@@ -93,8 +91,7 @@ export default function DailyPlanGenerator({ onNavigate, onSchedulePersisted }: 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const today = new Date().toISOString().split('T')[0]
-  const takenKey = `taken_doses_${today}`
+
 
   const [persisting, setPersisting] = useState(false)
   const [persistSuccess, setPersistSuccess] = useState(false)
@@ -172,10 +169,6 @@ export default function DailyPlanGenerator({ onNavigate, onSchedulePersisted }: 
     setLoading(true)
     setError(null)
     try {
-      const savedTaken: string[] = (() => {
-        try { return JSON.parse(localStorage.getItem(takenKey) || '[]') } catch { return [] }
-      })()
-
       const backendSchedule = await medeaseApi.medications.generateSchedule(
         selectedMedIds,
         wakeTime,
@@ -187,8 +180,7 @@ export default function DailyPlanGenerator({ onNavigate, onSchedulePersisted }: 
       )
 
       const schedule = mapBackendScheduleToDoses(backendSchedule, medications)
-      const withState = schedule.map(d => ({ ...d, taken: savedTaken.includes(d.id) }))
-      setGeneratedDoses(withState)
+      setGeneratedDoses(schedule)
       setGeneralAdvice(backendSchedule.general_advice)
       setGenerated(true)
       setShowInputs(false)
@@ -200,29 +192,6 @@ export default function DailyPlanGenerator({ onNavigate, onSchedulePersisted }: 
     }
   }
 
-  const toggleTaken = (id: string) => {
-    const updated = generatedDoses.map(d => d.id === id ? { ...d, taken: !d.taken } : d)
-    setGeneratedDoses(updated)
-    const takenIds = updated.filter(d => d.taken).map(d => d.id)
-    localStorage.setItem(takenKey, JSON.stringify(takenIds))
-
-    const dose = generatedDoses.find(d => d.id === id)
-    if (dose) {
-      const willBeTaken = !dose.taken
-      const dateStr = takenKey.replace('taken_doses_', '')
-      const scheduledTime = `${dateStr}T${dose.time}:00`
-      medeaseApi.medications.logHistoryEntry({
-        medication_id: dose.medId || 'custom',
-        medication_name: dose.name,
-        dosage: dose.dosage,
-        scheduled_time: new Date(scheduledTime).toISOString(),
-        status: willBeTaken ? 'taken' : 'pending',
-        taken_at: willBeTaken ? new Date().toISOString() : null
-      }).catch(err => {
-        console.error("Failed to log history toggle on backend:", err)
-      })
-    }
-  }
 
   const handleTimeChange = (id: string, newTime: string) => {
     setGeneratedDoses(prev =>
@@ -328,8 +297,7 @@ export default function DailyPlanGenerator({ onNavigate, onSchedulePersisted }: 
     setShowInputs(true)
   }
 
-  const takenCount = generatedDoses.filter(d => d.taken).length
-  const total = generatedDoses.length
+
 
   const inputClass = 'w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-shadow'
 
@@ -399,7 +367,7 @@ export default function DailyPlanGenerator({ onNavigate, onSchedulePersisted }: 
           <div className="flex items-center gap-2">
             <h2 className="font-bold text-slate-900 dark:text-white text-base">Your Daily Routine</h2>
           </div>
-          {showInputs ? <ChevronUp size={18} className="text-slate-400" /> : <ChevronDown size={18} className="text-slate-400" />}
+          {showInputs ? <ChevronUp size={20} className="text-slate-600" /> : <ChevronDown size={20} className="text-slate-600" />}
         </button>
 
         {showInputs && (
@@ -525,28 +493,6 @@ export default function DailyPlanGenerator({ onNavigate, onSchedulePersisted }: 
       {/* Generated Schedule */}
       {generated && !loading && (
         <div className="space-y-5">
-          {/* Progress bar */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-5 shadow-sm flex items-center justify-between gap-4">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">Today's Progress</p>
-              <p className="text-2xl font-black text-slate-900 dark:text-white">
-                {takenCount} <span className="text-slate-500 font-medium text-lg">/ {total}</span>
-              </p>
-              <p className="text-xs text-slate-600 mt-0.5">{total - takenCount} doses remaining</p>
-            </div>
-            <div className="flex-1 max-w-48">
-              <div className="h-2.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full transition-all duration-500"
-                  style={{ width: `${total > 0 ? (takenCount / total) * 100 : 0}%` }}
-                />
-              </div>
-            </div>
-            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-600 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2">
-              <Calendar size={12} className="text-blue-600" />
-              {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-            </div>
-          </div>
 
           {/* General Advice Panel */}
           {generalAdvice && (
@@ -603,15 +549,13 @@ export default function DailyPlanGenerator({ onNavigate, onSchedulePersisted }: 
                 return (
                   <li key={dose.id} className={`ml-6 ${isLast ? 'pb-0' : 'pb-5'}`}>
                     <span className={`absolute -left-[9px] w-4 h-4 rounded-full border-2 border-white dark:border-slate-900 transition-colors ${
-                      dose.taken ? 'bg-emerald-500' : dose.riskLevel === 'High' ? 'bg-red-500 animate-pulse' : 'bg-blue-400'
+                      dose.riskLevel === 'High' ? 'bg-red-500 animate-pulse' : 'bg-blue-400'
                     }`}></span>
 
                     <SpotlightCard
-                      spotlightColor={dose.taken ? 'rgba(16, 185, 129, 0.05)' : dose.riskLevel === 'High' ? 'rgba(239, 68, 68, 0.05)' : 'rgba(59, 130, 246, 0.05)'}
+                      spotlightColor={dose.riskLevel === 'High' ? 'rgba(239, 68, 68, 0.05)' : 'rgba(59, 130, 246, 0.05)'}
                       className={`p-4 rounded-xl border transition-all duration-200 ${
-                        dose.taken
-                          ? 'border-emerald-200 dark:border-emerald-800/40 bg-emerald-50/40 dark:bg-emerald-950/10 opacity-75'
-                          : dose.riskLevel === 'High'
+                        dose.riskLevel === 'High'
                           ? 'border-red-200 dark:border-red-800/30 bg-red-50/30 dark:bg-red-950/5'
                           : 'border-slate-100 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-800/20'
                       }`}
@@ -623,37 +567,22 @@ export default function DailyPlanGenerator({ onNavigate, onSchedulePersisted }: 
                             <input
                               type="time"
                               value={dose.time}
-                              disabled={dose.taken}
                               onChange={e => handleTimeChange(dose.id, e.target.value)}
-                              className="bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg py-0.5 text-[11px] font-bold text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500/40 w-20 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                              className="bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg py-0.5 text-[11px] font-bold text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500/40 w-20 cursor-pointer"
                             />
-                            {dose.riskLevel === 'High' && !dose.taken && (
+                            {dose.riskLevel === 'High' && (
                               <span className="flex items-center gap-1 text-[10px] font-bold text-red-500 bg-red-50 dark:bg-red-500/10 px-1.5 py-0.5 rounded-full border border-red-200 dark:border-red-500/20">
                                 <AlertTriangle size={9} /> High Alert
                               </span>
                             )}
                           </div>
-                          <p className={`font-bold text-slate-900 dark:text-white text-base leading-tight ${dose.taken ? 'line-through text-slate-400 dark:text-slate-600' : ''}`}>
+                          <p className="font-bold text-slate-900 dark:text-white text-base leading-tight">
                             {dose.name}
                           </p>
                           <p className="text-xs text-slate-500 mt-0.5">{dose.dosage}</p>
                           <p className="text-xs text-blue-600 dark:text-blue-400 mt-2 leading-relaxed bg-blue-50 dark:bg-blue-500/5 border border-blue-100 dark:border-blue-500/10 rounded-lg px-2.5 py-1.5">
                             💡 {dose.reason}
                           </p>
-                        </div>
-                        <div className="flex-shrink-0">
-                          {dose.taken ? (
-                            <span className="flex items-center gap-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 px-2.5 py-1 rounded-full">
-                              <CheckCircle2 size={11} /> Taken
-                            </span>
-                          ) : (
-                            <button
-                              onClick={() => toggleTaken(dose.id)}
-                              className="px-3 py-1.5 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-sm shadow-blue-500/20 transition-colors"
-                            >
-                              Mark taken
-                            </button>
-                          )}
                         </div>
                       </div>
                     </SpotlightCard>
