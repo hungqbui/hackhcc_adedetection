@@ -9,8 +9,9 @@ import MedicationHistory from './components/MedicationHistory'
 import ProfileView from './components/ProfileView'
 import SettingsView from './components/SettingsView'
 import LoginScreen from './components/LoginScreen'
+import LandingPage from './components/LandingPage'
 import MedicationsList from './components/MedicationsList'
-import { Contrast } from 'lucide-react'
+import { Contrast, Loader2 } from 'lucide-react'
 import { getAuthToken, removeAuthToken, medeaseApi } from './api'
 
 export type View = 'dashboard' | 'add' | 'generator' | 'ai' | 'history' | 'profile' | 'settings' | 'medications'
@@ -68,12 +69,22 @@ const DEFAULT_MEDICATIONS: Medication[] = [
 
 function App() {
   const [user, setUser] = useState<UserSession | null>(null)
+  const [showLogin, setShowLogin] = useState(false)
+  const [isGlobalLoading, setIsGlobalLoading] = useState(false)
   const [view, setView] = useState<View>('dashboard')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [accessibility, setAccessibility] = useState<AccessibilitySettings>({
     highContrast: false,
   })
   const [medications, setMedications] = useState<Medication[]>([])
+
+  useEffect(() => {
+    const handleLoadingChange = (e: any) => {
+      setIsGlobalLoading(e.detail.isLoading);
+    };
+    window.addEventListener('medease-loading-change', handleLoadingChange);
+    return () => window.removeEventListener('medease-loading-change', handleLoadingChange);
+  }, []);
 
   const fetchMedications = useCallback(async () => {
     try {
@@ -188,11 +199,56 @@ function App() {
 
   // If user is not signed in, show the Login/Register landing page
   if (!user) {
-    return <LoginScreen onLoginSuccess={setUser} />
+    return (
+      <div className="relative min-h-screen overflow-hidden bg-slate-950">
+        {isGlobalLoading && (
+          <div className="fixed inset-0 z-[9999] bg-slate-900/30 backdrop-blur-[2px] flex items-center justify-center pointer-events-none transition-opacity duration-300">
+            <div className="bg-white dark:bg-slate-800 px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3">
+               <Loader2 size={24} className="animate-spin text-blue-500" />
+               <span className="text-sm font-semibold text-slate-700 dark:text-slate-200 tracking-wide">Processing...</span>
+            </div>
+          </div>
+        )}
+        {/* Landing Page */}
+        <div 
+          className={`absolute inset-0 z-10 transition-all duration-700 ease-in-out transform ${
+            showLogin ? '-translate-y-full opacity-0 pointer-events-none' : 'translate-y-0 opacity-100'
+          }`}
+        >
+          <LandingPage onLoginClick={() => setShowLogin(true)} />
+        </div>
+
+        {/* Login Screen */}
+        <div 
+          className={`absolute inset-0 z-20 transition-all duration-700 ease-in-out transform ${
+            showLogin ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0 pointer-events-none'
+          } bg-slate-50 dark:bg-slate-950 overflow-y-auto`}
+        >
+          <div className="absolute top-4 left-4 z-50">
+            <button 
+              onClick={() => setShowLogin(false)}
+              className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white bg-white/50 dark:bg-slate-800/50 rounded-full shadow-sm backdrop-blur-sm transition-colors border border-slate-200 dark:border-slate-700"
+            >
+              &larr; Back
+            </button>
+          </div>
+          <LoginScreen onLoginSuccess={setUser} />
+        </div>
+      </div>
+    )
   }
 
   return (
     <div className={rootClasses}>
+      {isGlobalLoading && (
+        <div className="fixed inset-0 z-[9999] bg-slate-900/30 backdrop-blur-[2px] flex items-center justify-center pointer-events-none transition-opacity duration-300">
+          <div className="bg-white dark:bg-slate-800 px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 border border-slate-200 dark:border-slate-700/50">
+             <Loader2 size={24} className="animate-spin text-blue-500" />
+             <span className="text-sm font-semibold text-slate-700 dark:text-slate-200 tracking-wide">Processing...</span>
+          </div>
+        </div>
+      )}
+      
       {/* Desktop Sidebar */}
       <Sidebar
         collapsed={sidebarCollapsed}
