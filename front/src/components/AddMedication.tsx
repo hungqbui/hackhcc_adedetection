@@ -596,6 +596,64 @@ export default function AddMedication({ onMedicationAdded }: AddMedicationProps)
           Medication Profile Details
         </h2>
 
+          {/* ── Voice Audio Input Modality ───────────────── */}
+          <div className={`relative rounded-xl border-2 border-dashed transition-all overflow-hidden ${
+            isRecording
+              ? 'border-red-400 dark:border-red-500 bg-red-50/50 dark:bg-red-500/5'
+              : 'border-blue-200 dark:border-blue-800 bg-blue-50/30 dark:bg-blue-950/20 hover:border-blue-400 dark:hover:border-blue-600'
+          }`}>
+            <div className="flex items-center gap-4 p-4">
+              <button
+                type="button"
+                onClick={isRecording ? stopRecording : startRecording}
+                disabled={isListening || isScanningPhoto}
+                className={`flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center transition-all shadow-md ${
+                  isRecording
+                    ? 'bg-red-500 hover:bg-red-600 text-white animate-pulse shadow-red-500/30'
+                    : 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-600/20'
+                } disabled:opacity-50 disabled:cursor-not-allowed`}
+              >
+                {isRecording ? <Square size={18} fill="currentColor" /> : <Mic size={20} />}
+              </button>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-slate-800 dark:text-white">
+                  {isRecording ? 'Recording... Tap to stop' : 'Voice Audio Entry'}
+                </p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  {isRecording
+                    ? 'Speak your medication name, dosage, and schedule'
+                    : 'Record your medication details and AI will auto-fill all fields'}
+                </p>
+              </div>
+              {isRecording && (
+                <div className="flex gap-0.5 items-center h-8 flex-shrink-0">
+                  {[...Array(5)].map((_, i) => (
+                    <div
+                      key={i}
+                      className="w-1 bg-red-500 rounded-full animate-bounce"
+                      style={{
+                        height: `${12 + Math.random() * 16}px`,
+                        animationDelay: `${i * 0.12}s`,
+                        animationDuration: '0.6s',
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+            {isListening && !isRecording && (
+              <div className="absolute inset-0 bg-white/90 dark:bg-slate-900/90 rounded-xl flex flex-col items-center justify-center gap-2 z-10">
+                <div className="flex gap-1 items-center justify-center h-4">
+                  <div className="w-1 bg-blue-500 h-2 rounded animate-bounce" style={{ animationDelay: '0.1s' }} />
+                  <div className="w-1 bg-blue-500 h-4 rounded animate-bounce" style={{ animationDelay: '0.2s' }} />
+                  <div className="w-1 bg-blue-500 h-3 rounded animate-bounce" style={{ animationDelay: '0.3s' }} />
+                  <div className="w-1 bg-blue-500 h-1 rounded animate-bounce" style={{ animationDelay: '0.4s' }} />
+                </div>
+                <span className="text-xs font-bold text-slate-600 dark:text-slate-300">AI processing your audio...</span>
+              </div>
+            )}
+          </div>
+
           {/* Drug Name + Simple Voice button */}
           <div>
             <label className={labelClass}>Drug / Supplement Name *</label>
@@ -612,7 +670,7 @@ export default function AddMedication({ onMedicationAdded }: AddMedicationProps)
               <button
                 type="button"
                 onClick={handleVoiceInput}
-                title={isListening ? 'Listening…' : 'Voice input'}
+                title={isListening ? 'Listening…' : 'Voice input (name only)'}
                 className={`flex-shrink-0 px-3 py-2.5 rounded-xl border transition-all ${
                   isListening
                     ? 'bg-red-500 border-red-400 text-white animate-pulse'

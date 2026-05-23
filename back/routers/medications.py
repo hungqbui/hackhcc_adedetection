@@ -292,13 +292,19 @@ async def scan_medication(
         encoded_audio = base64.b64encode(audio_bytes).decode("utf-8")
         mime_type = audio.content_type or "audio/webm"
         
+        transcribe_llm = ChatGoogleGenerativeAI(
+            model="gemini-3.5-flash",
+            google_api_key=api_key,
+            temperature=0.1 # Low temperature for factual accuracy
+        )
+
         if not target_drug_name:
             transcription_prompt = (
                 "Listen to this audio clip and extract the name of the medication mentioned. "
                 "Respond with ONLY the name of the drug. If you cannot identify the drug, respond with 'unknown'."
             )
             try:
-                transcription_response = llm.invoke([
+                transcription_response = transcribe_llm.invoke([
                     HumanMessage(content=[
                         {"type": "text", "text": transcription_prompt},
                         {
@@ -307,7 +313,8 @@ async def scan_medication(
                         }
                     ])
                 ])
-                extracted_name = transcription_response.content.strip()
+                extracted_name = transcription_response.content[0]["text"].strip()
+                print(extracted_name)
                 if extracted_name.lower() != "unknown" and len(extracted_name) < 100:
                     target_drug_name = extracted_name
             except Exception as e:
