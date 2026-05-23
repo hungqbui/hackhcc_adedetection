@@ -15,9 +15,12 @@ import {
   Sparkles,
   Clock,
   Upload,
-  FileImage
+  FileImage,
+  AlertCircle
 } from 'lucide-react'
 import ElectricBorder from './react-bits/ElectricBorder'
+import { medeaseApi } from '../api'
+import type { MedicationBase, MedicationResponse } from '../api'
 
 interface Medication {
   id: string
@@ -31,7 +34,11 @@ interface Medication {
   riskLevel: 'Safe' | 'Moderate' | 'High'
   sideEffects?: string[]
   times?: string[]
+  whenToAvoid?: string
+  foodInteractions?: string
+  simplifiedExplanation?: string
 }
+
 
 const INTERACTION_DATABASE: {
   drugs: string[]
@@ -93,8 +100,13 @@ export default function AddMedication() {
   const [isScanningPhoto, setIsScanningPhoto] = useState(false)
   const [scannedFileName, setScannedFileName] = useState<string | null>(null)
   const [aiSchedule, setAiSchedule] = useState<string[] | null>(null)
+  const [whenToAvoid, setWhenToAvoid] = useState<string>('')
+  const [foodInteractions, setFoodInteractions] = useState<string>('')
+  const [simplifiedExplanation, setSimplifiedExplanation] = useState<string>('')
+  const [uploadedImagePreview, setUploadedImagePreview] = useState<string | null>(null)
   const [showAiPanel, setShowAiPanel] = useState(false)
   const [savedSuccess, setSavedSuccess] = useState(false)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [safetyReport, setSafetyReport] = useState<{
     status: 'unchecked' | 'safe' | 'alert'
     riskLevel: 'Safe' | 'Moderate' | 'High'
@@ -108,9 +120,10 @@ export default function AddMedication() {
     setFormData(prev => ({ ...prev, [name]: value }))
   }
 
-  // Simulate voice input
+  // Simulate basic voice input for simple micro button
   const handleVoiceInput = () => {
     setIsListening(true)
+    setErrorMsg(null)
     setTimeout(() => {
       const randomDrug = VOICE_DRUG_NAMES[Math.floor(Math.random() * VOICE_DRUG_NAMES.length)]
       setFormData(prev => ({ ...prev, name: randomDrug }))
@@ -118,7 +131,7 @@ export default function AddMedication() {
     }, 2000)
   }
 
-  // Run Safety Check logic
+  // Run Safety Check logic locally against predefined interactions database
   const performSafetyCheck = (drugName: string) => {
     setLoading(true)
     setSafetyReport({ status: 'unchecked', riskLevel: 'Safe' })
@@ -160,7 +173,7 @@ export default function AddMedication() {
         })
       }
       setLoading(false)
-    }, 1500)
+    }, 1200)
   }
 
   const runSafetyCheck = () => {
@@ -168,53 +181,147 @@ export default function AddMedication() {
     performSafetyCheck(formData.name)
   }
 
-  // Simulate photo scanning flow
-  const handlePhotoScan = (fileName: string) => {
+  // Real Photo Scan Call to Backend medications.py scan endpoint
+  const handlePhotoScan = async (file: File | null) => {
     setIsScanningPhoto(true)
-    setScannedFileName(fileName)
-    setTimeout(() => {
-      const name = 'Magnesium'
-      const dosage = '400mg'
-      const purpose = 'Supplement'
-      const notes = 'Extracted via AI label OCR photo scanning.'
+    setScannedFileName(file ? file.name : 'magnesium_bottle.png')
+    setErrorMsg(null)
+    if (!file) {
+      setUploadedImagePreview('https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=300&auto=format&fit=crop&q=60')
+    }
+    try {
+      // Call real backend endpoint (passes file if uploaded, or drug_name target if example trigger is used)
+      const res = await medeaseApi.medications.scan(file, file ? undefined : 'Magnesium 400mg')
+      
+      setFormData(prev => ({
+        ...prev,
+        name: res.name,
+        dosage: res.dosage || '400mg',
+        purpose: res.purpose || 'Supplement',
+        notes: res.special_instructions || 'Scanned via AI bottle labels.',
+        frequency: res.frequency.toLowerCase().includes('custom') ? 'custom' : 'daily'
+      }))
 
+      if (res.reminder_times && res.reminder_times.length > 0) {
+        setTimes(res.reminder_times)
+      } else {
+        setTimes(['21:00'])
+      }
+
+      // Populate AI insights fields
+      setWhenToAvoid(res.when_to_avoid || '')
+      setFoodInteractions(res.interactions_to_avoid?.join(', ') || '')
+      setSimplifiedExplanation(res.simplified_explanation || '')
+
+      const sideEffects = res.side_effects && res.side_effects.length > 0 
+        ? res.side_effects 
+        : (res.interactions_to_avoid && res.interactions_to_avoid.length > 0 ? ['Stomach discomfort', 'Mild diarrhea'] : ['Dry mouth', 'Mild drowsiness'])
+
+      // Check for interactions returned by backend API
+      if (res.interactions_to_avoid && res.interactions_to_avoid.length > 0) {
+        setSafetyReport({
+          status: 'alert',
+          riskLevel: 'High',
+          details: `Adverse drug / food warning labels: ${res.interactions_to_avoid.join(', ')}`,
+          recommendation: res.special_instructions || "Consult your provider regarding these interactions.",
+          sideEffects: sideEffects
+        })
+      } else {
+        setSafetyReport({
+          status: 'safe',
+          riskLevel: 'Safe',
+          sideEffects: sideEffects
+        })
+      }
+    } catch (err: any) {
+      console.error('Scanning failed. Falling back to simulation mode:', err)
+      setUploadedImagePreview(null)
+      // Fallback offline mock values
+      const name = 'Magnesium'
       setFormData(prev => ({
         ...prev,
         name,
-        dosage,
-        purpose,
-        notes,
+        dosage: '400mg',
+        purpose: 'Supplement',
+        notes: 'Failed to contact backend. Using local offline simulation.',
         frequency: 'daily'
       }))
       setTimes(['21:00'])
-      setIsScanningPhoto(false)
-      // Trigger safety check automatically
+      setWhenToAvoid('')
+      setFoodInteractions('')
+      setSimplifiedExplanation('')
       performSafetyCheck(name)
-    }, 2000)
+    } finally {
+      setIsScanningPhoto(false)
+    }
   }
 
-  // Simulate example voice saying: "I take magnesium 400mg every night."
-  const handleExampleVoiceFlow = () => {
+  // Real Voice Dictation Call to Backend medications.py scan endpoint
+  const handleExampleVoiceFlow = async () => {
     setIsListening(true)
-    setTimeout(() => {
-      const name = 'Magnesium'
-      const dosage = '400mg'
-      const purpose = 'Supplement'
-      const notes = 'Extracted via AI Voice: "I take magnesium 400mg every night."'
+    setErrorMsg(null)
+    try {
+      // Call real backend using drug_name slot for the transcription payload
+      const res = await medeaseApi.medications.scan(null, "I take magnesium 400mg every night.")
+      
+      setFormData(prev => ({
+        ...prev,
+        name: res.name,
+        dosage: res.dosage || '400mg',
+        purpose: res.purpose || 'Supplement',
+        notes: res.special_instructions || 'Extracted via AI Voice: "I take magnesium 400mg every night."',
+        frequency: res.frequency.toLowerCase().includes('custom') ? 'custom' : 'daily'
+      }))
 
+      if (res.reminder_times && res.reminder_times.length > 0) {
+        setTimes(res.reminder_times)
+      } else {
+        setTimes(['21:00'])
+      }
+
+      setWhenToAvoid(res.when_to_avoid || '')
+      setFoodInteractions(res.interactions_to_avoid?.join(', ') || '')
+      setSimplifiedExplanation(res.simplified_explanation || '')
+
+      const sideEffects = res.side_effects && res.side_effects.length > 0 
+        ? res.side_effects 
+        : (res.interactions_to_avoid && res.interactions_to_avoid.length > 0 ? ['Stomach discomfort', 'Mild diarrhea'] : ['Dry mouth', 'Mild drowsiness'])
+
+      if (res.interactions_to_avoid && res.interactions_to_avoid.length > 0) {
+        setSafetyReport({
+          status: 'alert',
+          riskLevel: 'High',
+          details: `Adverse drug / food warning labels: ${res.interactions_to_avoid.join(', ')}`,
+          recommendation: res.special_instructions || "Consult your provider regarding these interactions.",
+          sideEffects: sideEffects
+        })
+      } else {
+        setSafetyReport({
+          status: 'safe',
+          riskLevel: 'Safe',
+          sideEffects: sideEffects
+        })
+      }
+    } catch (err: any) {
+      console.error('Voice transcription failed. Falling back to simulation mode:', err)
+      // Fallback offline mock values
+      const name = 'Magnesium'
       setFormData(prev => ({
         ...prev,
         name,
-        dosage,
-        purpose,
-        notes,
+        dosage: '400mg',
+        purpose: 'Supplement',
+        notes: 'Failed to contact backend. Using local offline voice transcription.',
         frequency: 'daily'
       }))
       setTimes(['21:00'])
-      setIsListening(false)
-      // Trigger safety check automatically
+      setWhenToAvoid('')
+      setFoodInteractions('')
+      setSimplifiedExplanation('')
       performSafetyCheck(name)
-    }, 2200)
+    } finally {
+      setIsListening(false)
+    }
   }
 
   const addTime = () => setTimes(prev => [...prev, '12:00'])
@@ -238,43 +345,87 @@ export default function AddMedication() {
     ])
   }
 
-  const handleSave = () => {
-    const currentStored = localStorage.getItem('medications')
-    let existingMeds: Medication[] = []
-    if (currentStored) {
-      try { existingMeds = JSON.parse(currentStored) } catch {}
+  const handleSave = async () => {
+    setLoading(true);
+    setErrorMsg(null);
+    try {
+      const freqLabel = formData.frequency === 'daily'
+        ? (times.length === 1 ? 'Once daily (Morning)' : `${times.length}x daily`)
+        : 'Custom schedule';
+
+      // Map purpose dynamically to MedicationType
+      const isSupplement = formData.purpose.toLowerCase().includes('supplement') || 
+                           formData.purpose.toLowerCase().includes('vitamin') ||
+                           formData.name.toLowerCase().includes('magnesium') ||
+                           formData.name.toLowerCase().includes('vitamin');
+      const medType = isSupplement ? 'supplement' as const : 'prescription' as const;
+
+      const medicationPayload: MedicationBase = {
+        name: formData.name,
+        purpose: formData.purpose || 'Supplement',
+        type: medType,
+        dosage: formData.dosage || 'N/A',
+        frequency: freqLabel,
+        reminder_times: times,
+        optimal_time: ['morning'], // Default placeholder
+        with_food: formData.notes.toLowerCase().includes('food') || formData.notes.toLowerCase().includes('meal'),
+        interactions_to_avoid: foodInteractions ? foodInteractions.split(',').map(s => s.trim()) : [],
+        special_instructions: formData.notes || undefined,
+        side_effects: safetyReport.sideEffects || [],
+        when_to_avoid: whenToAvoid || undefined,
+        simplified_explanation: simplifiedExplanation || undefined
+      };
+
+      // Create medication in MongoDB
+      const res = await medeaseApi.medications.create(medicationPayload);
+
+      // Save locally to keep the UI in sync
+      const currentStored = localStorage.getItem('medications');
+      let existingMeds: Medication[] = [];
+      if (currentStored) {
+        try { existingMeds = JSON.parse(currentStored); } catch {}
+      }
+
+      const newMed: Medication = {
+        id: res.id,
+        name: res.name,
+        dosage: res.dosage,
+        frequency: res.frequency,
+        purpose: res.purpose,
+        startDate: formData.startDate,
+        endDate: formData.endDate || undefined,
+        notes: res.special_instructions || '',
+        riskLevel: safetyReport.riskLevel,
+        sideEffects: res.side_effects,
+        times: res.reminder_times,
+        whenToAvoid: res.when_to_avoid,
+        foodInteractions: res.interactions_to_avoid?.join(', '),
+        simplifiedExplanation: res.simplified_explanation
+      };
+
+      localStorage.setItem('medications', JSON.stringify([newMed, ...existingMeds]));
+      setSavedSuccess(true);
+
+      setTimeout(() => {
+        setFormData({ name: '', dosage: '', frequency: 'daily', purpose: '', startDate: new Date().toISOString().split('T')[0], endDate: '', notes: '' });
+        setTimes(['08:00']);
+        setSafetyReport({ status: 'unchecked', riskLevel: 'Safe' });
+        setWhenToAvoid('');
+        setFoodInteractions('');
+        setSimplifiedExplanation('');
+        setUploadedImagePreview(null);
+        setSavedSuccess(false);
+        setShowAiPanel(false);
+        setAiSchedule(null);
+        setScannedFileName(null);
+      }, 2200);
+    } catch (err: any) {
+      console.error('Failed to save medication to database:', err);
+      setErrorMsg(err.message || 'Failed to save medication. Please verify your connection.');
+    } finally {
+      setLoading(false);
     }
-
-    const freqLabel = formData.frequency === 'daily'
-      ? (times.length === 1 ? 'Once daily (Morning)' : `${times.length}x daily`)
-      : 'Custom schedule'
-
-    const newMed: Medication = {
-      id: Math.random().toString(36).substring(2, 9),
-      name: formData.name,
-      dosage: formData.dosage || 'N/A',
-      frequency: freqLabel,
-      purpose: formData.purpose || 'Supplement',
-      startDate: formData.startDate,
-      endDate: formData.endDate || undefined,
-      notes: formData.notes,
-      riskLevel: safetyReport.riskLevel,
-      sideEffects: safetyReport.sideEffects,
-      times
-    }
-
-    localStorage.setItem('medications', JSON.stringify([newMed, ...existingMeds]))
-    setSavedSuccess(true)
-    setTimeout(() => {
-      setFormData({ name: '', dosage: '', frequency: 'daily', purpose: '', startDate: new Date().toISOString().split('T')[0], endDate: '', notes: '' })
-      setTimes(['08:00'])
-      setSafetyReport({ status: 'unchecked', riskLevel: 'Safe' })
-      setSavedSuccess(false)
-      setShowAiPanel(false)
-      setAiSchedule(null)
-      setScannedFileName(null)
-    }, 2200)
-  }
+  };
 
   const inputClass = 'w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-shadow'
   const labelClass = 'block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5'
@@ -292,6 +443,13 @@ export default function AddMedication() {
         </p>
       </div>
 
+      {errorMsg && (
+        <div className="p-3 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/25 rounded-xl text-red-600 dark:text-red-400 text-xs font-semibold flex items-center gap-2">
+          <AlertCircle size={14} />
+          {errorMsg}
+        </div>
+      )}
+
       {/* ── AI SMART SCAN & DICTATION CONTAINER ───────────────── */}
       <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
         <div className="flex items-center gap-2">
@@ -304,27 +462,53 @@ export default function AddMedication() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
           {/* Column A: Photo Label Scanner */}
-          <div className="border border-dashed border-slate-200 dark:border-slate-800 hover:border-blue-400/80 rounded-xl p-4 flex flex-col items-center justify-center text-center bg-slate-50/50 dark:bg-slate-950/20 transition-colors relative group">
-            <Upload size={24} className="text-slate-400 group-hover:text-blue-500 transition-colors mb-2" />
-            <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Upload Bottle Photo</span>
-            <span className="text-[10px] text-slate-400 mt-1">Supports JPEG, PNG</span>
+          <div className="border border-dashed border-slate-200 dark:border-slate-800 hover:border-blue-400/80 rounded-xl p-4 flex flex-col items-center justify-center text-center bg-slate-50/50 dark:bg-slate-950/20 transition-colors relative group min-h-[160px]">
+            {uploadedImagePreview ? (
+              <div className="flex flex-col items-center gap-2 w-full h-full justify-center">
+                <img src={uploadedImagePreview} alt="Uploaded bottle label" className="max-h-24 object-contain rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm" />
+                <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-500/20">Uploaded Successfully</span>
+              </div>
+            ) : (
+              <>
+                <Upload size={24} className="text-slate-400 group-hover:text-blue-500 transition-colors mb-2" />
+                <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Upload Bottle Photo</span>
+                <span className="text-[10px] text-slate-400 mt-1">Supports JPEG, PNG</span>
+              </>
+            )}
             <input
               type="file"
               accept="image/*"
               onChange={(e) => {
                 if (e.target.files?.[0]) {
-                  handlePhotoScan(e.target.files[0].name)
+                  const file = e.target.files[0]
+                  const previewUrl = URL.createObjectURL(file)
+                  setUploadedImagePreview(previewUrl)
+                  handlePhotoScan(file)
                 }
               }}
               className="absolute inset-0 opacity-0 cursor-pointer"
             />
             {/* Quick Example Button */}
-            <button
-              onClick={() => handlePhotoScan('magnesium_bottle.png')}
-              className="mt-3 px-3 py-1.5 text-[10px] font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 text-blue-600 dark:text-blue-400 transition-all flex items-center gap-1"
-            >
-              <FileImage size={11} /> Try Example: Upload Bottle Photo
-            </button>
+            {!uploadedImagePreview && (
+              <button
+                onClick={() => handlePhotoScan(null)}
+                className="mt-3 px-3 py-1.5 text-[10px] font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 text-blue-600 dark:text-blue-400 transition-all flex items-center gap-1"
+              >
+                <FileImage size={11} /> Try Example: Upload Bottle Photo
+              </button>
+            )}
+            {uploadedImagePreview && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setUploadedImagePreview(null)
+                  setScannedFileName(null)
+                }}
+                className="absolute top-2 right-2 p-1 bg-white/80 dark:bg-slate-800/80 hover:bg-red-500 hover:text-white text-slate-500 rounded-full transition-colors z-10 shadow"
+              >
+                <X size={12} />
+              </button>
+            )}
             {isScanningPhoto && (
               <div className="absolute inset-0 bg-white/90 dark:bg-slate-900/90 rounded-xl flex flex-col items-center justify-center gap-2">
                 <Activity size={18} className="text-blue-500 animate-spin" />
@@ -360,12 +544,11 @@ export default function AddMedication() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-7 items-start">
-        {/* ── FORM ──────────────────────────────────────────── */}
-        <div className="lg:col-span-7 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-6 shadow-sm space-y-5">
-          <h2 className="font-bold text-slate-800 dark:text-white text-base border-b border-slate-100 dark:border-slate-800 pb-3">
-            Medication Profile Details
-          </h2>
+      {/* ── FORM CONTAINER ────────────────────────────────── */}
+      <div className="max-w-3xl mx-auto bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-6 shadow-sm space-y-5">
+        <h2 className="font-bold text-slate-800 dark:text-white text-base border-b border-slate-100 dark:border-slate-800 pb-3">
+          Medication Profile Details
+        </h2>
 
           {/* Drug Name + Simple Voice button */}
           <div>
@@ -486,7 +669,7 @@ export default function AddMedication() {
 
           {/* Notes */}
           <div>
-            <label className={labelClass}>Notes / Side Effects</label>
+            <label className={labelClass}>Clinical Recommendation</label>
             <div className="relative">
               <FileText className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
               <textarea name="notes" value={formData.notes}
@@ -498,22 +681,96 @@ export default function AddMedication() {
             </div>
           </div>
 
+          {/* AI Safety Check alerts */}
+          {safetyReport.status === 'alert' && safetyReport.details && (
+            <div className="p-4 bg-red-500/10 border border-red-500/25 rounded-xl space-y-2">
+              <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
+                <AlertOctagon size={16} className="animate-pulse" />
+                <span className="font-bold text-xs uppercase tracking-wider">ADE Interaction Warning</span>
+              </div>
+              <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
+                {safetyReport.details}
+              </p>
+            </div>
+          )}
+
+          {safetyReport.status !== 'unchecked' && safetyReport.sideEffects && safetyReport.sideEffects.length > 0 && (
+            <div className="space-y-1.5">
+              <label className={labelClass}>Potential Side Effects</label>
+              <div className="flex flex-wrap gap-1.5 p-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl">
+                {safetyReport.sideEffects.map(e => (
+                  <span key={e} className={`text-xs px-2.5 py-1 rounded-full font-semibold border ${
+                    safetyReport.status === 'alert'
+                      ? 'bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/20 text-red-600 dark:text-red-400'
+                      : 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/20 text-emerald-600 dark:text-emerald-400'
+                  }`}>
+                    {e}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Action Buttons */}
-          <div className="flex flex-col sm:flex-row gap-3 pt-2">
-            <button
-              type="button" onClick={runSafetyCheck}
-              disabled={!formData.name || loading || savedSuccess}
-              className="flex-1 py-3 px-4 font-bold text-sm text-white rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md shadow-blue-500/20"
-            >
-              {loading ? 'Analyzing…' : '🔬 Analyze Drug Safety'}
-            </button>
-            <button
-              type="button" onClick={generateAISchedule}
-              disabled={!formData.name}
-              className="flex-1 py-3 px-4 font-bold text-sm text-indigo-600 dark:text-indigo-400 rounded-xl bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 border border-indigo-200 dark:border-indigo-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
-            >
-              <Sparkles size={15} /> Generate AI Schedule
-            </button>
+          <div className="space-y-3 pt-2">
+            <div className="flex flex-col sm:flex-row gap-3">
+              <button
+                type="button" onClick={runSafetyCheck}
+                disabled={!formData.name || loading || savedSuccess}
+                className="flex-1 py-3 px-4 font-bold text-sm text-white rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md shadow-blue-500/20 flex items-center justify-center gap-1.5"
+              >
+                {loading ? (
+                  <>
+                    <Activity size={15} className="animate-spin" />
+                    Checking Safety...
+                  </>
+                ) : '🔬 Check Interactions With Current Medications'}
+              </button>
+              <button
+                type="button" onClick={generateAISchedule}
+                disabled={!formData.name}
+                className="flex-1 py-3 px-4 font-bold text-sm text-indigo-600 dark:text-indigo-400 rounded-xl bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 border border-indigo-200 dark:border-indigo-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+              >
+                <Sparkles size={15} /> Generate AI Schedule
+              </button>
+            </div>
+
+            {/* Save and Reset Check (always visible inside profile details) */}
+            <div className="flex flex-col sm:flex-row gap-3 border-t border-slate-100 dark:border-slate-800 pt-4 mt-2">
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={!formData.name || loading || savedSuccess}
+                className={`flex-1 py-3 px-4 font-bold text-sm text-white rounded-xl transition-all shadow-md flex items-center justify-center gap-2 ${
+                  savedSuccess
+                    ? 'bg-emerald-600 shadow-emerald-500/20'
+                    : safetyReport.status === 'alert'
+                      ? 'bg-red-600 hover:bg-red-700 shadow-red-500/20'
+                      : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-500/20'
+                } disabled:opacity-50 disabled:cursor-not-allowed`}
+              >
+                {savedSuccess ? (
+                  <><CheckCircle2 size={16} /> Saved Successfully</>
+                ) : (
+                  safetyReport.status === 'alert' ? 'Override & Save to Dashboard' : 'Save to Dashboard'
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSafetyReport({ status: 'unchecked', riskLevel: 'Safe' });
+                  setWhenToAvoid('');
+                  setFoodInteractions('');
+                  setSimplifiedExplanation('');
+                  setAiSchedule(null);
+                  setShowAiPanel(false);
+                }}
+                disabled={safetyReport.status === 'unchecked' && !aiSchedule && !whenToAvoid}
+                className="px-5 py-3 font-bold text-sm rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Reset Check
+              </button>
+            </div>
           </div>
 
           {/* AI Schedule Output */}
@@ -529,98 +786,6 @@ export default function AddMedication() {
             </div>
           )}
         </div>
-
-        {/* ── SAFETY CHECKER PANEL ───────────────────────────── */}
-        <div className="lg:col-span-5 space-y-5">
-          {loading && (
-            <ElectricBorder color="#3b82f6" borderRadius={16} speed={2}>
-              <div className="p-8 text-center bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl flex flex-col items-center justify-center min-h-[260px]">
-                <Activity className="h-9 w-9 text-blue-500 animate-spin mb-4" />
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">Running Safety Screen</h3>
-                <p className="text-slate-400 text-xs mt-2 max-w-xs mx-auto leading-relaxed">
-                  Scanning active records for adverse drug events, interaction risks, and clinical cautions…
-                </p>
-              </div>
-            </ElectricBorder>
-          )}
-
-          {!loading && safetyReport.status === 'unchecked' && (
-            <div className="border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-2xl p-6 text-center min-h-[260px] flex flex-col items-center justify-center shadow-sm">
-              <ShieldCheck className="h-10 w-10 text-slate-300 dark:text-slate-700 mb-3" />
-              <h3 className="text-slate-700 dark:text-slate-300 font-bold text-sm">Safety Report Pending</h3>
-              <p className="text-slate-400 dark:text-slate-500 text-xs mt-1.5 max-w-[220px] mx-auto leading-relaxed">
-                Enter a drug name or scan a label to run automatic interaction safety checks.
-              </p>
-            </div>
-          )}
-
-          {!loading && safetyReport.status === 'safe' && (
-            <div className="border border-emerald-200 dark:border-emerald-900/30 bg-emerald-50/40 dark:bg-emerald-950/10 rounded-2xl p-6 space-y-4 min-h-[260px] flex flex-col justify-between shadow-sm">
-              <div>
-                <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 mb-3">
-                  <CheckCircle2 size={20} />
-                  <h3 className="font-bold text-base">No Interactions Detected</h3>
-                </div>
-                <p className="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
-                  No interactions found between <strong>{formData.name}</strong> and your current medications.
-                </p>
-                <div className="mt-4">
-                  <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Common Side Effects</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {safetyReport.sideEffects?.map(e => (
-                      <span key={e} className="text-xs px-2.5 py-1 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-400 rounded-full font-medium">{e}</span>
-                    ))}
-                  </div>
-                </div>
-              </div>
-              <button
-                onClick={handleSave}
-                disabled={savedSuccess}
-                className="w-full py-2.5 font-bold text-sm rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white transition-colors shadow-md shadow-emerald-500/20 flex items-center justify-center gap-2"
-              >
-                {savedSuccess ? <><CheckCircle2 size={15} /> Saved Successfully</> : 'Save to Dashboard'}
-              </button>
-            </div>
-          )}
-
-          {!loading && safetyReport.status === 'alert' && (
-            <div className="border border-red-200 dark:border-red-900/30 bg-red-50/40 dark:bg-red-950/10 rounded-2xl p-6 space-y-4 min-h-[260px] flex flex-col justify-between shadow-sm">
-              <div className="space-y-3">
-                <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
-                  <AlertOctagon size={20} className="animate-pulse" />
-                  <h3 className="font-bold text-base">ADE Warning Detected</h3>
-                </div>
-                <span className="inline-block text-[10px] uppercase font-bold px-2 py-0.5 bg-red-500/15 text-red-500 rounded border border-red-500/25">
-                  {safetyReport.riskLevel} Severity
-                </span>
-                <p className="text-slate-800 dark:text-slate-200 text-sm leading-relaxed">{safetyReport.details}</p>
-                <div className="p-3 bg-red-500/5 border border-red-500/15 rounded-xl">
-                  <p className="text-xs font-bold text-red-500 mb-1">Clinical Recommendation</p>
-                  <p className="text-slate-600 dark:text-slate-400 text-xs leading-relaxed">{safetyReport.recommendation}</p>
-                </div>
-                <div>
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Potential Side Effects</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {safetyReport.sideEffects?.map(e => (
-                      <span key={e} className="text-xs px-2.5 py-1 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 text-red-600 dark:text-red-400 rounded-full font-medium">{e}</span>
-                    ))}
-                  </div>
-                </div>
-              </div>
-              <div className="flex flex-col gap-2">
-                <button onClick={handleSave} disabled={savedSuccess}
-                  className="w-full py-2.5 font-bold text-sm rounded-xl bg-red-600 hover:bg-red-700 text-white transition-colors shadow-md shadow-red-500/20 flex items-center justify-center gap-2">
-                  {savedSuccess ? <><CheckCircle2 size={15} /> Acknowledged</> : 'Override & Save (Not Recommended)'}
-                </button>
-                <button onClick={() => setSafetyReport({ status: 'unchecked', riskLevel: 'Safe' })}
-                  className="w-full py-2.5 font-bold text-sm rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors">
-                  Cancel Registration
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
       </div>
-    </div>
   )
 }

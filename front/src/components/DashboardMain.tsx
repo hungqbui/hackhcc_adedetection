@@ -19,6 +19,7 @@ import {
 import SpotlightCard from './react-bits/SpotlightCard'
 import StarBorder from './react-bits/StarBorder'
 import type { View } from '../App'
+import { medeaseApi } from '../api'
 
 interface Medication {
   id: string
@@ -30,6 +31,9 @@ interface Medication {
   notes?: string
   riskLevel: 'Safe' | 'Moderate' | 'High'
   sideEffects?: string[]
+  whenToAvoid?: string
+  foodInteractions?: string
+  simplifiedExplanation?: string
 }
 
 interface TodayDose {
@@ -123,8 +127,17 @@ const MEDICATION_INSIGHTS: Record<string, MedicationInsight> = {
   }
 }
 
-function getInsight(medName: string): MedicationInsight {
-  const key = medName.toLowerCase().trim()
+function getInsight(med: Medication): MedicationInsight {
+  if (med.simplifiedExplanation) {
+    return {
+      whatItIsFor: med.purpose || 'Indicated for general wellness support.',
+      sideEffects: med.sideEffects?.join(', ') || 'Generally well tolerated. Possible mild stomach upset.',
+      whenToAvoid: med.whenToAvoid || 'Consult your doctor if you have chronic medical conditions or take other prescription drugs.',
+      foodInteractions: med.foodInteractions || 'Take with a full glass of water. Food interaction profiles depend on other active medications.',
+      simplifiedExplanation: med.simplifiedExplanation
+    }
+  }
+  const key = med.name.toLowerCase().trim()
   for (const [k, v] of Object.entries(MEDICATION_INSIGHTS)) {
     if (key.includes(k) || k.includes(key)) {
       return v
@@ -132,10 +145,10 @@ function getInsight(medName: string): MedicationInsight {
   }
   return {
     whatItIsFor: `Indicated for general wellness support.`,
-    sideEffects: "Generally well tolerated. Possible mild stomach upset.",
+    sideEffects: med.sideEffects?.join(', ') || "Generally well tolerated. Possible mild stomach upset.",
     whenToAvoid: "Consult your doctor if you have chronic medical conditions or take other prescription drugs.",
     foodInteractions: "Take with a full glass of water. Food interaction profiles depend on other active medications.",
-    simplifiedExplanation: `${medName} supports your overall health and body recovery when taken consistently.`
+    simplifiedExplanation: `${med.name} supports your overall health and body recovery when taken consistently.`
   }
 }
 
@@ -219,20 +232,53 @@ export default function DashboardMain({ onNavigate }: DashboardMainProps) {
   const todayLabel = today.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
 
   useEffect(() => {
-    const stored = localStorage.getItem('medications')
-    let meds: Medication[]
-    try {
-      meds = stored ? JSON.parse(stored) : DEFAULT_MEDICATIONS
-    } catch {
-      meds = DEFAULT_MEDICATIONS
-    }
-    if (!stored) localStorage.setItem('medications', JSON.stringify(meds))
-    setMedications(meds)
+    const fetchMeds = async () => {
+      try {
+        const dbMeds = await medeaseApi.medications.list();
+        if (dbMeds) {
+          const mappedMeds: Medication[] = dbMeds.map(res => ({
+            id: res.id,
+            name: res.name,
+            dosage: res.dosage,
+            frequency: res.frequency,
+            purpose: res.purpose,
+            startDate: new Date(res.created_at).toISOString().split('T')[0],
+            notes: res.special_instructions || '',
+            riskLevel: res.interactions_to_avoid && res.interactions_to_avoid.length > 0 ? 'High' : 'Safe',
+            sideEffects: res.side_effects || [],
+            whenToAvoid: res.when_to_avoid || '',
+            foodInteractions: res.interactions_to_avoid?.join(', ') || '',
+            simplifiedExplanation: res.simplified_explanation || ''
+          }));
+          setMedications(mappedMeds);
+          localStorage.setItem('medications', JSON.stringify(mappedMeds));
+          const takenStored = localStorage.getItem(todayKey);
+          const takenIds: string[] = takenStored ? JSON.parse(takenStored) : [];
+          setDoses(buildTodaySchedule(mappedMeds, takenIds));
+          return;
+        }
+      } catch (err) {
+        console.error("Failed to fetch medications from backend, falling back to local storage:", err);
+      }
 
-    const takenStored = localStorage.getItem(todayKey)
-    const takenIds: string[] = takenStored ? JSON.parse(takenStored) : []
-    setDoses(buildTodaySchedule(meds, takenIds))
-  }, [])
+      // Fallback to local storage if API call fails
+      const stored = localStorage.getItem('medications');
+      let meds: Medication[];
+      try {
+        meds = stored ? JSON.parse(stored) : DEFAULT_MEDICATIONS;
+      } catch {
+        meds = DEFAULT_MEDICATIONS;
+      }
+      if (!stored) localStorage.setItem('medications', JSON.stringify(meds));
+      setMedications(meds);
+
+      const takenStored = localStorage.getItem(todayKey);
+      const takenIds: string[] = takenStored ? JSON.parse(takenStored) : [];
+      setDoses(buildTodaySchedule(meds, takenIds));
+    };
+
+    fetchMeds();
+  }, [todayKey]);
 
   const markTaken = (doseId: string) => {
     const updated = doses.map(d =>
@@ -259,7 +305,7 @@ export default function DashboardMain({ onNavigate }: DashboardMainProps) {
     localStorage.removeItem(todayKey)
   }
 
-  const selectedMedInsight = selectedMed ? getInsight(selectedMed.name) : null
+  const selectedMedInsight = selectedMed ? getInsight(selectedMed) : null
 
   return (
     <div className="space-y-7 pb-16 max-w-5xl mx-auto">

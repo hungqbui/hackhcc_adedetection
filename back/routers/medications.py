@@ -1,7 +1,7 @@
 import os
 import base64
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, List
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
@@ -45,6 +45,60 @@ async def fetch_drug_info_from_fda(drug_name: str) -> Optional[dict]:
             print(f"Error querying openFDA API for '{drug_name}': {e}")
     
     return None
+
+@router.post("/", response_model=MedicationResponse)
+async def create_medication(
+    medication: MedicationCreate,
+    current_user: dict = Depends(get_current_user)
+):
+    api_key = os.getenv("GEMINI_API_KEY")
+    vector = None
+    if api_key:
+        try:
+            embeddings_model = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-001", google_api_key=api_key)
+            embedding_text = f"Medication: {medication.name}. Purpose: {medication.purpose}."
+            vector = embeddings_model.embed_query(embedding_text)
+        except Exception as e:
+            print(f"Failed to generate embedding: {e}")
+
+    now = datetime.now(timezone.utc)
+    med_db = MedicationInDB(
+        **medication.model_dump(),
+        _id=str(ObjectId()),
+        username=current_user["username"],
+        embedding=vector,
+        created_at=now,
+        updated_at=now
+    )
+
+    await medication_collection.insert_one(med_db.model_dump(by_alias=True))
+
+    return MedicationResponse(
+        **medication.model_dump(),
+        id=med_db.id,
+        created_at=med_db.created_at
+    )
+
+@router.get("/", response_model=List[MedicationResponse])
+async def list_medications(current_user: dict = Depends(get_current_user)):
+    meds_cursor = medication_collection.find({"username": current_user["username"]})
+    meds = await meds_cursor.to_list(length=100)
+    
+    response_meds = []
+    for m in meds:
+        m_id = str(m.get("_id"))
+        response_meds.append(MedicationResponse(**m, id=m_id))
+    return response_meds
+
+@router.delete("/{med_id}")
+async def delete_medication(med_id: str, current_user: dict = Depends(get_current_user)):
+    result = await medication_collection.delete_one({
+        "_id": med_id,
+        "username": current_user["username"]
+    })
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Medication not found")
+    return {"status": "success", "message": "Medication deleted successfully"}
 
 @router.post("/schedule/generate", response_model=GeneratedMasterSchedule)
 async def generate_master_schedule(
@@ -240,30 +294,12 @@ async def scan_medication(
     if rxcui_list:
         extracted_med.rxcui = rxcui_list
 
-    # Generate an embedding for the medication based on its name and purpose
-    try:
-        embeddings_model = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-001", google_api_key=api_key)
-        embedding_text = f"Medication: {extracted_med.name}. Purpose: {extracted_med.purpose}."
-        vector = embeddings_model.embed_query(embedding_text)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to generate embedding: {str(e)}")
-
-    # Prepare database record
+    # Generate a temporary ID and timestamp (do not save to MongoDB)
+    temp_id = str(ObjectId())
     now = datetime.now(timezone.utc)
-    med_db = MedicationInDB(
-        **extracted_med.model_dump(),
-        _id=str(ObjectId()),
-        username=current_user["username"],
-        embedding=vector,
-        created_at=now,
-        updated_at=now
-    )
-
-    # Save to MongoDB
-    await medication_collection.insert_one(med_db.model_dump(by_alias=True))
 
     return MedicationResponse(
         **extracted_med.model_dump(),
-        id=med_db.id,
-        created_at=med_db.created_at
+        id=temp_id,
+        created_at=now
     )
