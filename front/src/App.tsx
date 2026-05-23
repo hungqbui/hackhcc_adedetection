@@ -228,7 +228,12 @@ function App() {
             />
           )}
           {view === 'add' && <AddMedication onMedicationAdded={fetchMedications} />}
-          {view === 'generator' && <DailyPlanGenerator onNavigate={setView} />}
+          {view === 'generator' && (
+            <DailyPlanGenerator
+              onNavigate={setView}
+              onSchedulePersisted={fetchMedications}
+            />
+          )}
           {view === 'ai' && (
             <div className="h-[calc(100vh-140px)] md:h-[calc(100vh-100px)]">
               <AIPanel mobileMode={true} currentView={view} />

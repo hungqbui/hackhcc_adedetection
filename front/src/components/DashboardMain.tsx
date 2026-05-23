@@ -21,6 +21,7 @@ import SpotlightCard from './react-bits/SpotlightCard'
 import StarBorder from './StarBorder'
 import type { View } from '../App'
 import { medeaseApi } from '../api'
+import type { GeneratedMasterSchedule } from '../api'
 
 interface Medication {
   id: string
@@ -49,6 +50,68 @@ interface TodayDose {
   status: 'taken' | 'upcoming' | 'missed'
   taken: boolean
   riskLevel: 'Safe' | 'Moderate' | 'High'
+  instructions?: string
+}
+
+const formatTime = (timeStr: string) => {
+  const [h, m] = timeStr.split(':').map(Number)
+  const ampm = h >= 12 ? 'PM' : 'AM'
+  const hour = h % 12 || 12
+  return `${hour}:${m.toString().padStart(2, '0')} ${ampm}`
+}
+
+function mapBackendScheduleToDoses(
+  backendSchedule: GeneratedMasterSchedule,
+  medications: Medication[],
+  takenIds: string[]
+): TodayDose[] {
+  const doses: TodayDose[] = []
+  const now = new Date()
+  const currentMinutes = now.getHours() * 60 + now.getMinutes()
+
+  backendSchedule.slots.forEach((slot, slotIdx) => {
+    slot.medication_names.forEach((medName, medIdx) => {
+      // Find matching medication in medications list to get its dosage and other details
+      const foundMed = medications.find(m => m.name.toLowerCase() === medName.toLowerCase()) || 
+                       medications.find(m => m.name.toLowerCase().includes(medName.toLowerCase())) || 
+                       medications.find(m => medName.toLowerCase().includes(m.name.toLowerCase()))
+
+      const dosage = foundMed ? foundMed.dosage : 'As directed'
+      const purpose = foundMed ? foundMed.purpose : 'Supplement'
+      const medId = foundMed ? foundMed.id : ''
+      const riskLevel = slot.interaction_warnings ? 'High' : (foundMed ? foundMed.riskLevel : 'Safe')
+      const instructions = slot.instructions + (slot.interaction_warnings ? ` (Caution: ${slot.interaction_warnings})` : '')
+
+      const id = `${medName}-${slot.time}-${slotIdx}-${medIdx}`
+      const [h, m] = slot.time.split(':').map(Number)
+      const doseMinutes = h * 60 + m
+      let status: 'taken' | 'upcoming' | 'missed' = 'upcoming'
+      
+      const taken = takenIds.includes(id)
+      if (taken) {
+        status = 'taken'
+      } else if (currentMinutes > doseMinutes + 30) {
+        status = 'missed'
+      }
+
+      doses.push({
+        id,
+        medId,
+        name: medName,
+        dosage,
+        purpose,
+        time: slot.time,
+        label: formatTime(slot.time),
+        status,
+        taken,
+        riskLevel,
+        instructions
+      })
+    })
+  })
+
+  // Sort chronologically
+  return doses.sort((a, b) => a.time.localeCompare(b.time))
 }
 
 interface MedicationInsight {
@@ -191,9 +254,40 @@ export default function DashboardMain({ onNavigate, medications, onFetchMeds }: 
   const todayLabel = today.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
 
   useEffect(() => {
-    const takenStored = localStorage.getItem(todayKey);
-    const takenIds: string[] = takenStored ? JSON.parse(takenStored) : [];
-    setDoses(buildTodaySchedule(medications, takenIds));
+    let active = true
+
+    async function loadSchedule() {
+      const takenStored = localStorage.getItem(todayKey);
+      const takenIds: string[] = takenStored ? JSON.parse(takenStored) : [];
+
+      if (medications.length === 0) {
+        if (active) setDoses([]);
+        return;
+      }
+
+      try {
+        const savedSchedule = await medeaseApi.medications.getPersistedSchedule();
+        if (active) {
+          if (savedSchedule && savedSchedule.slots && savedSchedule.slots.length > 0) {
+            const mapped = mapBackendScheduleToDoses(savedSchedule, medications, takenIds);
+            setDoses(mapped);
+          } else {
+            setDoses(buildTodaySchedule(medications, takenIds));
+          }
+        }
+      } catch (err) {
+        console.log("No persisted schedule found or failed to fetch, falling back to local calculation.", err);
+        if (active) {
+          setDoses(buildTodaySchedule(medications, takenIds));
+        }
+      }
+    }
+
+    loadSchedule();
+
+    return () => {
+      active = false;
+    };
   }, [medications, todayKey]);
 
   const markTaken = (doseId: string) => {
@@ -372,9 +466,9 @@ export default function DashboardMain({ onNavigate, medications, onFetchMeds }: 
                          <div className="w-2 h-2 rounded-full bg-slate-400"></div>
                       </span>
                       <div className="flex items-center gap-3 pt-1">
-                        <div className="h-px bg-slate-200 dark:bg-slate-700 flex-1 border-dashed"></div>
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{currentTimeStr} - NOW</span>
-                        <div className="h-px bg-slate-200 dark:bg-slate-700 flex-[3] border-dashed"></div>
+                        <div className="h-px bg-slate-500 dark:bg-slate-700 flex-1 border-dashed"></div>
+                        <span className="text-[12px] font-bold text-slate-600 uppercase tracking-wider">{currentTimeStr} - NOW</span>
+                        <div className="h-px bg-slate-500 dark:bg-slate-700 flex-[3] border-dashed"></div>
                       </div>
                     </li>
                   )}
@@ -400,6 +494,11 @@ export default function DashboardMain({ onNavigate, medications, onFetchMeds }: 
                           <p className="text-xs text-slate-500 mt-0.5 break-words whitespace-normal">
                             {dose.dosage} • <span className="font-semibold text-slate-600 dark:text-slate-400">{dose.purpose}</span>
                           </p>
+                          {dose.instructions && (
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">
+                              💡 <span className="italic">{dose.instructions}</span>
+                            </p>
+                          )}
                         </div>
                       </div>
                       <div className="flex items-center gap-2.5 flex-shrink-0" onClick={e => e.stopPropagation()}>
@@ -486,73 +585,7 @@ export default function DashboardMain({ onNavigate, medications, onFetchMeds }: 
         </div>
       </div>
 
-      {/* ── ALL MEDICATIONS QUICK VIEW ────────────────────────── */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
-          <h2 className="font-extrabold text-slate-900 dark:text-white text-base">Active Medications</h2>
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-400">
-            <TrendingUp size={13} className="text-blue-500" />
-            {medications.length} registered
-          </div>
-        </div>
-        <div className="divide-y divide-slate-50 dark:divide-slate-800">
-          {paginatedMedications.map(med => (
-            <div
-              key={med.id}
-              onClick={() => setSelectedMed(med)}
-              className="cursor-pointer flex items-center gap-4 px-6 py-4 hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors"
-            >
-              <div className={`flex-shrink-0 p-2 rounded-xl ${
-                med.riskLevel === 'High' ? 'bg-red-500/10 text-red-500'
-                  : med.riskLevel === 'Moderate' ? 'bg-amber-500/10 text-amber-500'
-                  : 'bg-emerald-500/10 text-emerald-500'
-              }`}>
-                <Pill size={16} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-bold text-slate-900 dark:text-white text-sm truncate flex items-center gap-2">
-                  {med.name}
-                  <span className="text-[9px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 px-1.5 py-0.5 rounded border border-indigo-200 dark:border-indigo-500/20 flex items-center gap-0.5">
-                    <Sparkles size={8} /> AI Insight
-                  </span>
-                </p>
-                <p className="text-xs text-slate-500 truncate">{med.dosage} · {med.frequency} · <span className="font-semibold">{med.purpose}</span></p>
-              </div>
-              <span className={`flex-shrink-0 text-xs font-semibold px-2.5 py-1 rounded-full border ${
-                med.riskLevel === 'High'
-                  ? 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 border-red-200 dark:border-red-500/20'
-                  : med.riskLevel === 'Moderate'
-                  ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-500/20'
-                  : 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20'
-              }`}>
-                {med.riskLevel}
-              </span>
-            </div>
-          ))}
-        </div>
-        {totalMedPages > 1 && (
-          <div className="flex items-center justify-between px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/20 dark:bg-slate-900/10">
-            <button
-              onClick={() => setMedPage(prev => Math.max(prev - 1, 1))}
-              disabled={medPage === 1}
-              className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/50 disabled:opacity-40 disabled:cursor-not-allowed text-slate-600 dark:text-slate-300 transition-colors shadow-sm"
-            >
-              <ChevronLeft size={14} /> Previous
-            </button>
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-              Page {medPage} of {totalMedPages}
-            </span>
-            <button
-              onClick={() => setMedPage(prev => Math.min(prev + 1, totalMedPages))}
-              disabled={medPage === totalMedPages}
-              className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/50 disabled:opacity-40 disabled:cursor-not-allowed text-slate-600 dark:text-slate-300 transition-colors shadow-sm"
-            >
-              Next <ChevronRight size={14} />
-            </button>
-          </div>
-        )}
-      </div>
-
+      
       {/* ── AI MEDICATION INSIGHTS MODAL ───────────────────────── */}
       {selectedMed && selectedMedInsight && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm transition-opacity">

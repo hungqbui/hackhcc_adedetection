@@ -213,7 +213,7 @@ export default function AIPanel({ mobileMode = false, currentView = 'dashboard' 
           </div>
           <div>
             <p className="text-sm font-bold text-slate-800 dark:text-white leading-none">AI Assistant</p>
-            <p className="text-[10px] text-slate-400 mt-0.5 capitalize">{currentView} context</p>
+            <p className="text-[10px] text-slate-600 mt-0.5 capitalize">{currentView} context</p>
           </div>
         </div>
         <div className="flex items-center gap-1">
