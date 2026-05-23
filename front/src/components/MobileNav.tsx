@@ -1,4 +1,4 @@
-import { LayoutDashboard, PlusCircle, CalendarDays, Bot, History } from 'lucide-react'
+import { LayoutDashboard, PlusCircle, CalendarDays, Bot, User } from 'lucide-react'
 import type { View } from '../App'
 
 interface MobileNavProps {
@@ -11,7 +11,7 @@ const navItems: { view: View; label: string; icon: React.ElementType }[] = [
   { view: 'add', label: 'Add', icon: PlusCircle },
   { view: 'generator', label: 'Plan', icon: CalendarDays },
   { view: 'ai', label: 'AI', icon: Bot },
-  { view: 'history', label: 'History', icon: History },
+  { view: 'profile', label: 'Profile', icon: User },
 ]
 
 export default function MobileNav({ onNavigate, activeView }: MobileNavProps) {

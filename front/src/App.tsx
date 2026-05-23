@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Sidebar from './components/Sidebar'
 import AIPanel from './components/AIPanel'
 import DashboardMain from './components/DashboardMain'
@@ -6,21 +6,52 @@ import AddMedication from './components/AddMedication'
 import DailyPlanGenerator from './components/DailyPlanGenerator'
 import MobileNav from './components/MobileNav'
 import MedicationHistory from './components/MedicationHistory'
-import ProfileSettings from './components/ProfileSettings'
+import ProfileView from './components/ProfileView'
+import SettingsView from './components/SettingsView'
+import LoginScreen from './components/LoginScreen'
 import { Contrast } from 'lucide-react'
+import { getAuthToken, removeAuthToken } from './api'
 
-export type View = 'dashboard' | 'add' | 'generator' | 'ai' | 'history' | 'profile'
+export type View = 'dashboard' | 'add' | 'generator' | 'ai' | 'history' | 'profile' | 'settings'
 
 export interface AccessibilitySettings {
-  highContrast: boolean
+  highContrast: boolean;
+}
+
+interface UserSession {
+  username: string;
+  email: string;
 }
 
 function App() {
+  const [user, setUser] = useState<UserSession | null>(null)
   const [view, setView] = useState<View>('dashboard')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [accessibility, setAccessibility] = useState<AccessibilitySettings>({
     highContrast: false,
   })
+
+  // Check if user is already logged in (has active token + saved identity)
+  useEffect(() => {
+    const token = getAuthToken()
+    const storedUsername = localStorage.getItem('medease_username')
+    const storedEmail = localStorage.getItem('medease_email')
+
+    if (token && storedUsername) {
+      setUser({
+        username: storedUsername,
+        email: storedEmail || `${storedUsername}@medease.com`
+      })
+    }
+  }, [])
+
+  const handleLogout = () => {
+    removeAuthToken()
+    localStorage.removeItem('medease_username')
+    localStorage.removeItem('medease_email')
+    setUser(null)
+    setView('dashboard')
+  }
 
   const toggleAccessibility = (key: keyof AccessibilitySettings) => {
     setAccessibility(prev => ({ ...prev, [key]: !prev[key] }))
@@ -31,6 +62,11 @@ function App() {
     'min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex font-sans transition-colors duration-300',
     accessibility.highContrast ? 'high-contrast' : '',
   ].join(' ')
+
+  // If user is not signed in, show the Login/Register landing page
+  if (!user) {
+    return <LoginScreen onLoginSuccess={setUser} />
+  }
 
   return (
     <div className={rootClasses}>
@@ -72,7 +108,14 @@ function App() {
           )}
           {view === 'history' && <MedicationHistory />}
           {view === 'profile' && (
-            <ProfileSettings
+            <ProfileView
+              user={user}
+              onLogout={handleLogout}
+              onNavigate={setView}
+            />
+          )}
+          {view === 'settings' && (
+            <SettingsView
               accessibility={accessibility}
               onToggleAccessibility={toggleAccessibility}
             />

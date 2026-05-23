@@ -9,7 +9,12 @@ import {
   Bell,
   ShieldCheck,
   TrendingUp,
-  Lightbulb
+  Lightbulb,
+  Sparkles,
+  X,
+  Ban,
+  Utensils,
+  BookOpen
 } from 'lucide-react'
 import SpotlightCard from './react-bits/SpotlightCard'
 import StarBorder from './react-bits/StarBorder'
@@ -40,6 +45,14 @@ interface TodayDose {
   riskLevel: 'Safe' | 'Moderate' | 'High'
 }
 
+interface MedicationInsight {
+  whatItIsFor: string
+  sideEffects: string
+  whenToAvoid: string
+  foodInteractions: string
+  simplifiedExplanation: string
+}
+
 const DEFAULT_MEDICATIONS: Medication[] = [
   {
     id: '1', name: 'Lisinopril', dosage: '10mg', frequency: 'Once daily (Morning)',
@@ -64,6 +77,67 @@ const DEFAULT_MEDICATIONS: Medication[] = [
     sideEffects: ['Nausea', 'Metabolism changes']
   }
 ]
+
+const MEDICATION_INSIGHTS: Record<string, MedicationInsight> = {
+  lisinopril: {
+    whatItIsFor: "Treats high blood pressure (hypertension) and helps prevent heart attacks or strokes.",
+    sideEffects: "Dry cough, dizziness, lightheadedness, and headache.",
+    whenToAvoid: "Avoid during pregnancy. Do not take if you have a history of angioedema (severe swelling).",
+    foodInteractions: "Avoid potassium-rich foods (like bananas) or potassium supplements, as Lisinopril can increase potassium in your blood.",
+    simplifiedExplanation: "Lisinopril relaxes your blood vessels to lower pressure, making it easier for your heart to pump blood."
+  },
+  aspirin: {
+    whatItIsFor: "Protects against heart attacks and strokes by preventing blood clots.",
+    sideEffects: "Stomach irritation, heartburn, easy bruising, and increased bleeding.",
+    whenToAvoid: "Avoid if you have active stomach ulcers, bleeding disorders, or take blood thinners without medical supervision.",
+    foodInteractions: "Avoid taking on an empty stomach. Limit alcohol intake to reduce bleeding risk.",
+    simplifiedExplanation: "Aspirin acts as a mild blood thinner to keep blood flowing smoothly through your arteries."
+  },
+  ibuprofen: {
+    whatItIsFor: "Relieves mild to moderate pain, inflammation, and fever.",
+    sideEffects: "Stomach ache, heartburn, nausea, and headache.",
+    whenToAvoid: "Avoid if you have kidney disease, history of stomach ulcers, or if you recently had heart surgery.",
+    foodInteractions: "Always take with food or milk to protect your stomach lining from irritation.",
+    simplifiedExplanation: "Ibuprofen blocks the chemicals causing inflammation and pain in your joints and muscles."
+  },
+  metformin: {
+    whatItIsFor: "Lowers blood sugar levels in type 2 diabetes by improving insulin sensitivity.",
+    sideEffects: "Nausea, diarrhea, abdominal discomfort, and metallic taste.",
+    whenToAvoid: "Avoid if you have severe kidney disease or are at risk of lactic acidosis.",
+    foodInteractions: "Take with food (breakfast/dinner) to reduce digestive side effects.",
+    simplifiedExplanation: "Metformin helps your body utilize its own insulin better and reduces the sugar released by your liver."
+  },
+  magnesium: {
+    whatItIsFor: "Supports muscle function, nervous system health, and sleep regulation.",
+    sideEffects: "Mild stomach cramps or diarrhea if taken in high doses.",
+    whenToAvoid: "Avoid if you have severe kidney impairment without doctor approval.",
+    foodInteractions: "Taking with food can reduce stomach upset. Avoid taking at the exact same time as calcium or iron.",
+    simplifiedExplanation: "Magnesium relaxes tense muscles and supports peaceful sleep when taken at night."
+  },
+  iron: {
+    whatItIsFor: "Treats or prevents iron-deficiency anemia by helping build red blood cells.",
+    sideEffects: "Constipation, dark stools, upset stomach.",
+    whenToAvoid: "Avoid if you have hemochromatosis (iron overload disorder).",
+    foodInteractions: "Absorbs best on an empty stomach. Avoid taking with tea, coffee, milk, or calcium, which block absorption. Pair with Vitamin C for better absorption.",
+    simplifiedExplanation: "Iron absorbs better on an empty stomach. It helps your red blood cells carry oxygen throughout your body."
+  }
+}
+
+function getInsight(medName: string): MedicationInsight {
+  const key = medName.toLowerCase().trim()
+  for (const [k, v] of Object.entries(MEDICATION_INSIGHTS)) {
+    if (key.includes(k) || k.includes(key)) {
+      return v
+    }
+  }
+  return {
+    whatItIsFor: `Indicated for general wellness support.`,
+    sideEffects: "Generally well tolerated. Possible mild stomach upset.",
+    whenToAvoid: "Consult your doctor if you have chronic medical conditions or take other prescription drugs.",
+    foodInteractions: "Take with a full glass of water. Food interaction profiles depend on other active medications.",
+    simplifiedExplanation: `${medName} supports your overall health and body recovery when taken consistently.`
+  }
+}
 
 function buildTodaySchedule(medications: Medication[], takenIds: string[]): TodayDose[] {
   const now = new Date()
@@ -138,6 +212,7 @@ interface DashboardMainProps {
 export default function DashboardMain({ onNavigate }: DashboardMainProps) {
   const [medications, setMedications] = useState<Medication[]>([])
   const [doses, setDoses] = useState<TodayDose[]>([])
+  const [selectedMed, setSelectedMed] = useState<Medication | null>(null)
 
   const today = new Date()
   const todayKey = `taken_doses_${today.toISOString().split('T')[0]}`
@@ -184,6 +259,8 @@ export default function DashboardMain({ onNavigate }: DashboardMainProps) {
     localStorage.removeItem(todayKey)
   }
 
+  const selectedMedInsight = selectedMed ? getInsight(selectedMed.name) : null
+
   return (
     <div className="space-y-7 pb-16 max-w-5xl mx-auto">
 
@@ -195,7 +272,7 @@ export default function DashboardMain({ onNavigate }: DashboardMainProps) {
             {todayLabel}
           </h1>
           <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
-            Manage your medications and track daily adherence.
+            Manage your medications and track daily adherence. Click any item for AI Medication Insights.
           </p>
         </div>
         <button
@@ -249,8 +326,17 @@ export default function DashboardMain({ onNavigate }: DashboardMainProps) {
           </p>
           {nextDose ? (
             <>
-              <div>
-                <p className="font-extrabold text-xl leading-tight">{nextDose.name}</p>
+              <div
+                onClick={() => {
+                  const med = medications.find(m => m.id === nextDose.medId)
+                  if (med) setSelectedMed(med)
+                }}
+                className="cursor-pointer group"
+              >
+                <p className="font-extrabold text-xl leading-tight group-hover:underline flex items-center gap-1">
+                  {nextDose.name}
+                  <Sparkles size={13} className="text-blue-200" />
+                </p>
                 <p className="text-blue-200 text-xs mt-0.5 font-semibold tracking-wide uppercase">{nextDose.purpose}</p>
                 <p className="text-blue-200 text-sm mt-1">{nextDose.dosage} · {nextDose.label}</p>
               </div>
@@ -316,17 +402,28 @@ export default function DashboardMain({ onNavigate }: DashboardMainProps) {
                 <li key={dose.id} className={`ml-6 ${isLast ? 'pb-0' : 'pb-5'}`}>
                   {/* Timeline dot */}
                   <span className={`absolute -left-[9px] w-4 h-4 rounded-full border-2 border-white dark:border-slate-900 ${statusConfig.dot}`}></span>
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl bg-slate-50/60 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                  <div
+                    onClick={() => {
+                      const med = medications.find(m => m.id === dose.medId)
+                      if (med) setSelectedMed(med)
+                    }}
+                    className="cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl bg-slate-50/60 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                  >
                     <div className="flex items-start gap-3">
                       <div className="flex-shrink-0">
                         <p className="text-xs font-bold text-slate-500 dark:text-slate-400">{dose.label}</p>
-                        <p className="font-bold text-slate-900 dark:text-white text-base mt-0.5">{dose.name}</p>
+                        <p className="font-bold text-slate-900 dark:text-white text-base mt-0.5 flex items-center gap-1.5">
+                          {dose.name}
+                          <span className="text-[9px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 px-1.5 py-0.5 rounded border border-blue-200 dark:border-blue-500/20 flex items-center gap-0.5">
+                            <Sparkles size={8} /> AI Insight
+                          </span>
+                        </p>
                         <p className="text-xs text-slate-500 mt-0.5">
                           {dose.dosage} • <span className="font-semibold text-slate-600 dark:text-slate-400">{dose.purpose}</span>
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2.5 flex-shrink-0">
+                    <div className="flex items-center gap-2.5 flex-shrink-0" onClick={e => e.stopPropagation()}>
                       <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold border ${statusConfig.badge}`}>
                         {dose.status === 'taken' && <CheckCircle2 size={11} />}
                         {dose.status === 'missed' && <AlertTriangle size={11} />}
@@ -406,7 +503,11 @@ export default function DashboardMain({ onNavigate }: DashboardMainProps) {
         </div>
         <div className="divide-y divide-slate-50 dark:divide-slate-800">
           {medications.map(med => (
-            <div key={med.id} className="flex items-center gap-4 px-6 py-4 hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
+            <div
+              key={med.id}
+              onClick={() => setSelectedMed(med)}
+              className="cursor-pointer flex items-center gap-4 px-6 py-4 hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors"
+            >
               <div className={`flex-shrink-0 p-2 rounded-xl ${
                 med.riskLevel === 'High' ? 'bg-red-500/10 text-red-500'
                   : med.riskLevel === 'Moderate' ? 'bg-amber-500/10 text-amber-500'
@@ -415,7 +516,12 @@ export default function DashboardMain({ onNavigate }: DashboardMainProps) {
                 <Pill size={16} />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-bold text-slate-900 dark:text-white text-sm truncate">{med.name}</p>
+                <p className="font-bold text-slate-900 dark:text-white text-sm truncate flex items-center gap-2">
+                  {med.name}
+                  <span className="text-[9px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 px-1.5 py-0.5 rounded border border-indigo-200 dark:border-indigo-500/20 flex items-center gap-0.5">
+                    <Sparkles size={8} /> AI Insight
+                  </span>
+                </p>
                 <p className="text-xs text-slate-500 truncate">{med.dosage} · {med.frequency} · <span className="font-semibold">{med.purpose}</span></p>
               </div>
               <span className={`flex-shrink-0 text-xs font-semibold px-2.5 py-1 rounded-full border ${
@@ -431,6 +537,90 @@ export default function DashboardMain({ onNavigate }: DashboardMainProps) {
           ))}
         </div>
       </div>
+
+      {/* ── AI MEDICATION INSIGHTS MODAL ───────────────────────── */}
+      {selectedMed && selectedMedInsight && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm transition-opacity">
+          <div
+            className="w-full max-w-xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-200"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-gradient-to-r from-blue-500/10 to-indigo-500/15">
+              <div className="flex items-center gap-2">
+                <Sparkles size={16} className="text-blue-500" />
+                <h3 className="font-extrabold text-slate-900 dark:text-white text-base">AI Medication Insights</h3>
+              </div>
+              <button
+                onClick={() => setSelectedMed(null)}
+                className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-5">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">Active Agent</p>
+                <p className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2">
+                  {selectedMed.name}
+                  <span className="text-xs font-semibold text-slate-400 dark:text-slate-500">({selectedMed.dosage})</span>
+                </p>
+              </div>
+
+              {/* Simplified Explanation Box */}
+              <div className="bg-indigo-50/50 dark:bg-indigo-500/5 border border-indigo-100 dark:border-indigo-500/20 rounded-2xl p-4">
+                <div className="flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400 font-bold text-xs mb-1.5 uppercase tracking-wider">
+                  <BookOpen size={13} /> Simplified Explanation
+                </div>
+                <p className="text-slate-700 dark:text-slate-300 text-sm leading-relaxed font-medium">
+                  “{selectedMedInsight.simplifiedExplanation}”
+                </p>
+              </div>
+
+              {/* Insights List */}
+              <div className="space-y-4 pt-1">
+                {[
+                  { label: "What it's for", value: selectedMedInsight.whatItIsFor, icon: Pill, color: 'text-blue-500 bg-blue-500/10' },
+                  { label: "Common Side Effects", value: selectedMedInsight.sideEffects, icon: AlertTriangle, color: 'text-amber-500 bg-amber-500/10' },
+                  { label: "When to Avoid It", value: selectedMedInsight.whenToAvoid, icon: Ban, color: 'text-red-500 bg-red-500/10' },
+                  { label: "Food Interactions", value: selectedMedInsight.foodInteractions, icon: Utensils, color: 'text-emerald-500 bg-emerald-500/10' },
+                ].map(({ label, value, icon: Icon, color }) => (
+                  <div key={label} className="flex gap-3">
+                    <div className={`p-2 rounded-xl h-9 w-9 flex-shrink-0 flex items-center justify-center ${color}`}>
+                      <Icon size={16} />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">{label}</h4>
+                      <p className="text-slate-700 dark:text-slate-200 text-xs mt-0.5 leading-relaxed">{value}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-900/30 flex justify-between gap-3">
+              <button
+                onClick={() => {
+                  setSelectedMed(null)
+                  onNavigate('ai')
+                }}
+                className="text-xs font-bold text-blue-600 hover:text-blue-700 transition-colors flex items-center gap-1 py-2 px-3 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-500/10"
+              >
+                Ask AI Assistant →
+              </button>
+              <button
+                onClick={() => setSelectedMed(null)}
+                className="px-4 py-2 text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white rounded-xl dark:bg-slate-800 dark:hover:bg-slate-700 transition-colors"
+              >
+                Close Insights
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   )

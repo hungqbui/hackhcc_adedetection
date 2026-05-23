@@ -5,6 +5,7 @@ import {
   Bot,
   History,
   User,
+  Settings,
   ChevronLeft,
   ChevronRight,
   HeartPulse
@@ -24,7 +25,8 @@ const navItems: { view: View; label: string; icon: React.ElementType }[] = [
   { view: 'generator', label: 'Daily Plan', icon: CalendarDays },
   { view: 'ai', label: 'AI Assistant', icon: Bot },
   { view: 'history', label: 'History', icon: History },
-  { view: 'profile', label: 'Settings', icon: User },
+  { view: 'profile', label: 'Profile', icon: User },
+  { view: 'settings', label: 'Settings', icon: Settings },
 ]
 
 export default function Sidebar({

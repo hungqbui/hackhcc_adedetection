@@ -23,8 +23,8 @@ export default {
         background: "var(--background)",
         foreground: "var(--foreground)",
         primary: {
-          DEFAULT: "var(--primary)",
-          foreground: "var(--primary-foreground)",
+          DEFAULT: "#2F6FED",
+          foreground: "#ffffff",
         },
         secondary: {
           DEFAULT: "var(--secondary)",
@@ -50,6 +50,46 @@ export default {
           DEFAULT: "var(--card)",
           foreground: "var(--card-foreground)",
         },
+        // Premium brand custom palettes
+        blue: {
+          50: '#F0F5FF',
+          100: '#E0EBFF',
+          200: '#C7DAFF',
+          300: '#9FC0FF',
+          400: '#6C9BFF',
+          500: '#2F6FED', // Brand Blue
+          600: '#1D50CF',
+          700: '#163DA8',
+          800: '#173489',
+          900: '#182E6E',
+          950: '#101C44',
+        },
+        emerald: {
+          50: '#EEFDF7',
+          100: '#D4FAF0',
+          200: '#A9F4DF',
+          300: '#70EBC6',
+          400: '#3CD4A8',
+          500: '#3CCF91', // Brand Healing Green
+          600: '#25AF77',
+          700: '#1D8B60',
+          800: '#1B6E4E',
+          900: '#175B42',
+          950: '#0B3527',
+        },
+        slate: {
+          50: '#F5F7FA', // Brand Light Neutral Background
+          100: '#F1F3F5',
+          200: '#E9ECEF',
+          300: '#DEE2E6',
+          400: '#CED4DA',
+          500: '#ADB5BD',
+          600: '#495057',
+          700: '#343A40',
+          800: '#212529',
+          900: '#1A1D20',
+          950: '#111215',
+        }
       },
       borderRadius: {
         lg: "var(--radius)",

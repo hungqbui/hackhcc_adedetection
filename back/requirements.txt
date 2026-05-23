@@ -3,10 +3,10 @@ uvicorn
 langchain
 langchain-google-genai
 pymongo[srv]
-bson
+motor
 python-multipart
 httpx
-python-jose[cryptography]
-passlib[bcrypt]
+pyjwt
+bcrypt
 python-dotenv
 google-generativeai
