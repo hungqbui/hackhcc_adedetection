@@ -8,20 +8,25 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
-  HeartPulse
+  HeartPulse,
+  Pill,
+  Trash2
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import type { View } from '../App'
+import type { View, Medication } from '../App'
 
 interface SidebarProps {
   collapsed: boolean
   onCollapseToggle: () => void
   onNavigate: (view: View) => void
   activeView: View
+  medications: Medication[]
+  onDeleteMedication: (id: string) => void
 }
 
 const navItems: { view: View; label: string; icon: LucideIcon }[] = [
   { view: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { view: 'medications', label: 'Active Meds', icon: Pill },
   { view: 'add', label: 'Add Medication', icon: PlusCircle },
   { view: 'generator', label: 'Daily Plan', icon: CalendarDays },
   { view: 'history', label: 'History', icon: History },
@@ -34,6 +39,8 @@ export default function Sidebar({
   onCollapseToggle,
   onNavigate,
   activeView,
+  medications,
+  onDeleteMedication,
 }: SidebarProps) {
   return (
     <aside

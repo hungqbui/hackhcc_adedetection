@@ -100,6 +100,14 @@ async function apiRequest<T>(
     headers,
   });
 
+  if (response.status === 401) {
+    removeAuthToken();
+    localStorage.removeItem('medease_username');
+    localStorage.removeItem('medease_email');
+    window.dispatchEvent(new CustomEvent('medease-unauthorized'));
+    throw new Error('Session expired. Please log in again.');
+  }
+
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
     throw new Error(errorData.detail || `API request failed with status ${response.status}`);

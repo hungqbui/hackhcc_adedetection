@@ -165,6 +165,16 @@ async def scan_medication(
     if not image and not drug_name and not audio:
         raise HTTPException(status_code=400, detail="Must provide an image, audio, or a drug_name")
 
+    # Fetch user's existing medications for interaction check comparison
+    existing_meds_cursor = medication_collection.find({"username": current_user["username"]})
+    existing_meds = await existing_meds_cursor.to_list(length=100)
+    existing_meds_context = ""
+    if existing_meds:
+        existing_meds_context = "\n".join([
+            f"- Name: {m.get('name')}, Purpose: {m.get('purpose')}, Special Instructions: {m.get('special_instructions', '')}"
+            for m in existing_meds
+        ])
+
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
         raise HTTPException(status_code=500, detail="GEMINI_API_KEY is not configured")
@@ -287,8 +297,17 @@ async def scan_medication(
         "Extract the medication details and create an optimal schedule plan. "
         "Determine if it should be taken with food, the best general times of day, "
         "and generate specific 24-hour times (HH:MM) for a notification reminder system based on the frequency (e.g. if twice a day, maybe 08:00 and 20:00). "
-        "Also list any critical drug or food interactions to avoid."
+        "Check for any potential adverse drug events (ADE) or interactions between this new medication and the user's current medications. "
+        "List any critical drug-drug interactions with current medications or drug-food interactions in the 'interactions_to_avoid' field. "
+        "Explain any interactions or warnings clearly in the 'special_instructions' or 'simplified_explanation' if applicable."
     )
+
+    if existing_meds_context:
+        prompt_text += (
+            "\n\nCRITICAL: The user is currently taking the following medications. "
+            "Evaluate if the new scanned/input medication has dangerous interactions or contraindications with them:\n"
+            f"=== CURRENT USER MEDICATIONS ===\n{existing_meds_context}\n================================\n"
+        )
 
     if ground_truth_context:
         prompt_text += (

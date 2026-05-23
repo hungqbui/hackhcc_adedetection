@@ -1,5 +1,5 @@
-import { LayoutDashboard, PlusCircle, CalendarDays, Bot, User } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
+import { LayoutDashboard, PlusCircle, CalendarDays, Bot, User, Pill } from 'lucide-react'
 import type { View } from '../App'
 
 interface MobileNavProps {
@@ -9,6 +9,7 @@ interface MobileNavProps {
 
 const navItems: { view: View; label: string; icon: LucideIcon }[] = [
   { view: 'dashboard', label: 'Today', icon: LayoutDashboard },
+  { view: 'medications', label: 'Meds', icon: Pill },
   { view: 'add', label: 'Add', icon: PlusCircle },
   { view: 'generator', label: 'Plan', icon: CalendarDays },
   { view: 'profile', label: 'Profile', icon: User },

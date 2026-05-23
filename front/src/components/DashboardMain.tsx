@@ -221,10 +221,11 @@ function buildTodaySchedule(medications: Medication[], takenIds: string[]): Toda
 
 interface DashboardMainProps {
   onNavigate: (view: View) => void
+  medications: Medication[]
+  onFetchMeds: () => void
 }
 
-export default function DashboardMain({ onNavigate }: DashboardMainProps) {
-  const [medications, setMedications] = useState<Medication[]>([])
+export default function DashboardMain({ onNavigate, medications, onFetchMeds }: DashboardMainProps) {
   const [doses, setDoses] = useState<TodayDose[]>([])
   const [selectedMed, setSelectedMed] = useState<Medication | null>(null)
   const [medPage, setMedPage] = useState(1)
@@ -246,53 +247,10 @@ export default function DashboardMain({ onNavigate }: DashboardMainProps) {
   const todayLabel = today.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
 
   useEffect(() => {
-    const fetchMeds = async () => {
-      try {
-        const dbMeds = await medeaseApi.medications.list();
-        if (dbMeds) {
-          const mappedMeds: Medication[] = dbMeds.map(res => ({
-            id: res.id,
-            name: res.name,
-            dosage: res.dosage,
-            frequency: res.frequency,
-            purpose: res.purpose,
-            startDate: new Date(res.created_at).toISOString().split('T')[0],
-            notes: res.special_instructions || '',
-            riskLevel: res.interactions_to_avoid && res.interactions_to_avoid.length > 0 ? 'High' : 'Safe',
-            sideEffects: res.side_effects || [],
-            whenToAvoid: res.when_to_avoid || '',
-            foodInteractions: res.interactions_to_avoid?.join(', ') || '',
-            simplifiedExplanation: res.simplified_explanation || ''
-          }));
-          setMedications(mappedMeds);
-          localStorage.setItem('medications', JSON.stringify(mappedMeds));
-          const takenStored = localStorage.getItem(todayKey);
-          const takenIds: string[] = takenStored ? JSON.parse(takenStored) : [];
-          setDoses(buildTodaySchedule(mappedMeds, takenIds));
-          return;
-        }
-      } catch (err) {
-        console.error("Failed to fetch medications from backend, falling back to local storage:", err);
-      }
-
-      // Fallback to local storage if API call fails
-      const stored = localStorage.getItem('medications');
-      let meds: Medication[];
-      try {
-        meds = stored ? JSON.parse(stored) : DEFAULT_MEDICATIONS;
-      } catch {
-        meds = DEFAULT_MEDICATIONS;
-      }
-      if (!stored) localStorage.setItem('medications', JSON.stringify(meds));
-      setMedications(meds);
-
-      const takenStored = localStorage.getItem(todayKey);
-      const takenIds: string[] = takenStored ? JSON.parse(takenStored) : [];
-      setDoses(buildTodaySchedule(meds, takenIds));
-    };
-
-    fetchMeds();
-  }, [todayKey]);
+    const takenStored = localStorage.getItem(todayKey);
+    const takenIds: string[] = takenStored ? JSON.parse(takenStored) : [];
+    setDoses(buildTodaySchedule(medications, takenIds));
+  }, [medications, todayKey]);
 
   const markTaken = (doseId: string) => {
     const updated = doses.map(d =>
@@ -313,10 +271,8 @@ export default function DashboardMain({ onNavigate }: DashboardMainProps) {
 
   const resetToDefault = () => {
     localStorage.setItem('medications', JSON.stringify(DEFAULT_MEDICATIONS))
-    setMedications(DEFAULT_MEDICATIONS)
-    const takenIds: string[] = []
-    setDoses(buildTodaySchedule(DEFAULT_MEDICATIONS, takenIds))
     localStorage.removeItem(todayKey)
+    onFetchMeds()
   }
 
   const selectedMedInsight = selectedMed ? getInsight(selectedMed) : null

@@ -2,13 +2,14 @@ import React, { useState, useRef } from 'react'
 import {
   Pill,
   Calendar,
-  FileText,
   Activity,
-  AlertTriangle,
   CheckCircle2,
+<<<<<<< HEAD
   AlertOctagon,
   ShieldCheck,
   Search,
+=======
+>>>>>>> 73b60ac4b317d97962406503f2493d4929fefb59
   Mic,
   MicOff,
   Plus,
@@ -42,51 +43,11 @@ interface Medication {
 }
 
 
-const INTERACTION_DATABASE: {
-  drugs: string[]
-  riskLevel: 'Moderate' | 'High'
-  message: string
-  recommendation: string
-  sideEffects: string[]
-}[] = [
-  {
-    drugs: ['aspirin', 'ibuprofen'], riskLevel: 'High',
-    message: 'Increased gastrointestinal bleeding risk and decreased cardioprotective effect of Aspirin.',
-    recommendation: 'Avoid simultaneous use if taking Aspirin for cardiovascular protection. Use Acetaminophen under medical supervision.',
-    sideEffects: ['Gastrointestinal ulceration', 'Internal bleeding', 'Abdominal pain']
-  },
-  {
-    drugs: ['warfarin', 'aspirin'], riskLevel: 'High',
-    message: 'Severe increase in systemic bleeding risk. Both medications inhibit coagulation cascade.',
-    recommendation: 'Requires strict INR monitoring. Consult your cardiologist.',
-    sideEffects: ['Easy bruising', 'Nosebleeds', 'Severe internal bleeding']
-  },
-  {
-    drugs: ['sildenafil', 'nitroglycerin'], riskLevel: 'High',
-    message: 'Potentially life-threatening hypotension. Nitroglycerin vasodilation is amplified by Sildenafil.',
-    recommendation: 'Strict contraindication. Do NOT take Sildenafil within 24 hours of Nitroglycerin.',
-    sideEffects: ['Severe hypotension', 'Syncope', 'Myocardial infarction']
-  },
-  {
-    drugs: ['lisinopril', 'spironolactone'], riskLevel: 'Moderate',
-    message: 'Risk of hyperkalemia. Both agents conserve potassium in the kidneys.',
-    recommendation: 'Monitor serum potassium regularly. Limit dietary potassium intake.',
-    sideEffects: ['Muscle weakness', 'Cardiac arrhythmias', 'Nausea']
-  }
-]
-
-const VOICE_DRUG_NAMES = ['Lisinopril', 'Metformin', 'Ibuprofen', 'Aspirin', 'Amoxicillin', 'Atorvastatin']
-
-const AI_SCHEDULE_HINTS: Record<string, string[]> = {
-  metformin: ['Take with meals to reduce nausea', 'Split morning and evening doses with food'],
-  ibuprofen: ['Take with food or milk to protect stomach lining', 'Avoid taking on an empty stomach'],
-  aspirin: ['Take in the morning for optimal cardioprotective effect', 'Avoid concurrent NSAIDs'],
-  lisinopril: ['Best taken in the morning', 'Avoid potassium supplements unless directed'],
-  magnesium: ['Take in the evening or before bed to support muscle relaxation and sleep quality.'],
-  default: ['Space doses evenly throughout the day', 'Take with a full glass of water']
+interface AddMedicationProps {
+  onMedicationAdded?: () => void
 }
 
-export default function AddMedication() {
+export default function AddMedication({ onMedicationAdded }: AddMedicationProps) {
   const [formData, setFormData] = useState({
     name: '',
     dosage: '',
@@ -101,14 +62,13 @@ export default function AddMedication() {
   const [isListening, setIsListening] = useState(false)
   const [isScanningPhoto, setIsScanningPhoto] = useState(false)
   const [scannedFileName, setScannedFileName] = useState<string | null>(null)
-  const [aiSchedule, setAiSchedule] = useState<string[] | null>(null)
   const [whenToAvoid, setWhenToAvoid] = useState<string>('')
   const [foodInteractions, setFoodInteractions] = useState<string>('')
   const [simplifiedExplanation, setSimplifiedExplanation] = useState<string>('')
   const [uploadedImagePreview, setUploadedImagePreview] = useState<string | null>(null)
-  const [showAiPanel, setShowAiPanel] = useState(false)
   const [savedSuccess, setSavedSuccess] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+<<<<<<< HEAD
   
   // Voice & Modality state
   const [isRecording, setIsRecording] = useState(false)
@@ -122,12 +82,16 @@ export default function AddMedication() {
     recommendation?: string
     sideEffects?: string[]
   }>({ status: 'unchecked', riskLevel: 'Safe' })
+=======
+  const [sideEffects, setSideEffects] = useState<string[]>([])
+>>>>>>> 73b60ac4b317d97962406503f2493d4929fefb59
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target
     setFormData(prev => ({ ...prev, [name]: value }))
   }
 
+<<<<<<< HEAD
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
@@ -162,65 +126,45 @@ export default function AddMedication() {
   }
 
   // Simulate basic voice input for simple micro button
+=======
+  // Dictate real drug names using browser Web Speech API
+>>>>>>> 73b60ac4b317d97962406503f2493d4929fefb59
   const handleVoiceInput = () => {
-    setIsListening(true)
     setErrorMsg(null)
-    setTimeout(() => {
-      const randomDrug = VOICE_DRUG_NAMES[Math.floor(Math.random() * VOICE_DRUG_NAMES.length)]
-      setFormData(prev => ({ ...prev, name: randomDrug }))
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (!SpeechRecognition) {
+      setErrorMsg("Voice recognition is not supported in this browser.")
+      return
+    }
+
+    const recognition = new SpeechRecognition()
+    recognition.lang = 'en-US'
+    recognition.interimResults = false
+    recognition.maxAlternatives = 1
+
+    recognition.onstart = () => {
+      setIsListening(true)
+    }
+
+    recognition.onerror = (event: any) => {
+      console.error("Speech recognition error:", event.error)
+      setErrorMsg(`Voice recognition failed: ${event.error}`)
       setIsListening(false)
-    }, 2000)
+    }
+
+    recognition.onend = () => {
+      setIsListening(false)
+    }
+
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript
+      setFormData(prev => ({ ...prev, name: transcript }))
+    }
+
+    recognition.start()
   }
 
-  // Run Safety Check logic locally against predefined interactions database
-  const performSafetyCheck = (drugName: string) => {
-    setLoading(true)
-    setSafetyReport({ status: 'unchecked', riskLevel: 'Safe' })
 
-    setTimeout(() => {
-      const currentStored = localStorage.getItem('medications')
-      let existingMeds: Medication[] = []
-      if (currentStored) {
-        try { existingMeds = JSON.parse(currentStored) } catch {}
-      }
-
-      const newDrugLower = drugName.trim().toLowerCase()
-      let detectedInteraction = null
-
-      for (const existing of existingMeds) {
-        const existingLower = existing.name.trim().toLowerCase()
-        const interaction = INTERACTION_DATABASE.find(
-          item => item.drugs.includes(newDrugLower) && item.drugs.includes(existingLower) && newDrugLower !== existingLower
-        )
-        if (interaction) { detectedInteraction = interaction; break }
-      }
-
-      if (detectedInteraction) {
-        setSafetyReport({
-          status: 'alert',
-          riskLevel: detectedInteraction.riskLevel,
-          details: detectedInteraction.message,
-          recommendation: detectedInteraction.recommendation,
-          sideEffects: detectedInteraction.sideEffects
-        })
-      } else {
-        const standardSideEffects = newDrugLower.includes('magnesium')
-          ? ['Mild laxative effect', 'Stomach upset']
-          : ['Dry mouth', 'Mild drowsiness']
-        setSafetyReport({
-          status: 'safe',
-          riskLevel: 'Safe',
-          sideEffects: standardSideEffects
-        })
-      }
-      setLoading(false)
-    }, 1200)
-  }
-
-  const runSafetyCheck = () => {
-    if (!formData.name) return
-    performSafetyCheck(formData.name)
-  }
 
   // Real Photo Scan Call to Backend medications.py scan endpoint
   const handlePhotoScan = async (file: File | null) => {
@@ -258,40 +202,11 @@ export default function AddMedication() {
         ? res.side_effects 
         : (res.interactions_to_avoid && res.interactions_to_avoid.length > 0 ? ['Stomach discomfort', 'Mild diarrhea'] : ['Dry mouth', 'Mild drowsiness'])
 
-      // Check for interactions returned by backend API
-      if (res.interactions_to_avoid && res.interactions_to_avoid.length > 0) {
-        setSafetyReport({
-          status: 'alert',
-          riskLevel: 'High',
-          details: `Adverse drug / food warning labels: ${res.interactions_to_avoid.join(', ')}`,
-          recommendation: res.special_instructions || "Consult your provider regarding these interactions.",
-          sideEffects: sideEffects
-        })
-      } else {
-        setSafetyReport({
-          status: 'safe',
-          riskLevel: 'Safe',
-          sideEffects: sideEffects
-        })
-      }
+      setSideEffects(sideEffects)
     } catch (err: any) {
-      console.error('Scanning failed. Falling back to simulation mode:', err)
+      console.error('Scanning failed:', err)
+      setErrorMsg(err.message || 'Failed to scan bottle. Please check backend connection.')
       setUploadedImagePreview(null)
-      // Fallback offline mock values
-      const name = 'Magnesium'
-      setFormData(prev => ({
-        ...prev,
-        name,
-        dosage: '400mg',
-        purpose: 'Supplement',
-        notes: 'Failed to contact backend. Using local offline simulation.',
-        frequency: 'daily'
-      }))
-      setTimes(['21:00'])
-      setWhenToAvoid('')
-      setFoodInteractions('')
-      setSimplifiedExplanation('')
-      performSafetyCheck(name)
     } finally {
       setIsScanningPhoto(false)
     }
@@ -381,23 +296,10 @@ export default function AddMedication() {
         ? res.side_effects 
         : (res.interactions_to_avoid && res.interactions_to_avoid.length > 0 ? ['Stomach discomfort', 'Mild diarrhea'] : ['Dry mouth', 'Mild drowsiness'])
 
-      if (res.interactions_to_avoid && res.interactions_to_avoid.length > 0) {
-        setSafetyReport({
-          status: 'alert',
-          riskLevel: 'High',
-          details: `Adverse drug / food warning labels: ${res.interactions_to_avoid.join(', ')}`,
-          recommendation: res.special_instructions || "Consult your provider regarding these interactions.",
-          sideEffects: sideEffects
-        })
-      } else {
-        setSafetyReport({
-          status: 'safe',
-          riskLevel: 'Safe',
-          sideEffects: sideEffects
-        })
-      }
+      setSideEffects(sideEffects)
     } catch (err: any) {
       console.error('Voice transcription failed:', err)
+<<<<<<< HEAD
       setErrorMsg('Failed to process example voice dictation.')
     } finally {
       setIsListening(false)
@@ -455,6 +357,9 @@ export default function AddMedication() {
     } catch (err: any) {
       console.error('Text scan failed:', err)
       setErrorMsg('Failed to process text search.')
+=======
+      setErrorMsg(err.message || 'Voice example failed. Please check backend connection.')
+>>>>>>> 73b60ac4b317d97962406503f2493d4929fefb59
     } finally {
       setIsListening(false)
     }
@@ -464,22 +369,6 @@ export default function AddMedication() {
   const removeTime = (idx: number) => setTimes(prev => prev.filter((_, i) => i !== idx))
   const updateTime = (idx: number, val: string) => setTimes(prev => prev.map((t, i) => i === idx ? val : t))
 
-  const generateAISchedule = () => {
-    setShowAiPanel(true)
-    const key = formData.name.toLowerCase()
-    const hints = AI_SCHEDULE_HINTS[key] || AI_SCHEDULE_HINTS['default']
-    const freq = formData.frequency === 'daily' ? 'Once Daily' : 'Custom'
-    const timeList = times.map(t => {
-      const [h, m] = t.split(':').map(Number)
-      const ampm = h >= 12 ? 'PM' : 'AM'
-      const hour = h % 12 || 12
-      return `${hour}:${m.toString().padStart(2, '0')} ${ampm}`
-    })
-    setAiSchedule([
-      `📅 Frequency: ${freq} at ${timeList.join(', ')}`,
-      ...hints.map(h => `💡 ${h}`)
-    ])
-  }
 
   const handleSave = async () => {
     setLoading(true);
@@ -507,7 +396,7 @@ export default function AddMedication() {
         with_food: formData.notes.toLowerCase().includes('food') || formData.notes.toLowerCase().includes('meal'),
         interactions_to_avoid: foodInteractions ? foodInteractions.split(',').map(s => s.trim()) : [],
         special_instructions: formData.notes || undefined,
-        side_effects: safetyReport.sideEffects || [],
+        side_effects: sideEffects,
         when_to_avoid: whenToAvoid || undefined,
         simplified_explanation: simplifiedExplanation || undefined
       };
@@ -531,7 +420,7 @@ export default function AddMedication() {
         startDate: formData.startDate,
         endDate: formData.endDate || undefined,
         notes: res.special_instructions || '',
-        riskLevel: safetyReport.riskLevel,
+        riskLevel: 'Safe',
         sideEffects: res.side_effects,
         times: res.reminder_times,
         whenToAvoid: res.when_to_avoid,
@@ -540,19 +429,20 @@ export default function AddMedication() {
       };
 
       localStorage.setItem('medications', JSON.stringify([newMed, ...existingMeds]));
+      if (onMedicationAdded) {
+        onMedicationAdded();
+      }
       setSavedSuccess(true);
 
       setTimeout(() => {
         setFormData({ name: '', dosage: '', frequency: 'daily', purpose: '', startDate: new Date().toISOString().split('T')[0], endDate: '', notes: '' });
         setTimes(['08:00']);
-        setSafetyReport({ status: 'unchecked', riskLevel: 'Safe' });
+        setSideEffects([]);
         setWhenToAvoid('');
         setFoodInteractions('');
         setSimplifiedExplanation('');
         setUploadedImagePreview(null);
         setSavedSuccess(false);
-        setShowAiPanel(false);
-        setAiSchedule(null);
         setScannedFileName(null);
       }, 2200);
     } catch (err: any) {
@@ -564,7 +454,7 @@ export default function AddMedication() {
   };
 
   const inputClass = 'w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-shadow'
-  const labelClass = 'block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5'
+  const labelClass = 'block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-500 mb-1.5'
 
   return (
     <div className="max-w-4xl mx-auto pb-16 space-y-7">
@@ -574,7 +464,7 @@ export default function AddMedication() {
         <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
           Add New Medication
         </h1>
-        <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
+        <p className="text-slate-600 dark:text-slate-300 text-md mt-1">
           Register prescriptions, supplements, or vitamins. Support text, photo labels, or voice commands.
         </p>
       </div>
@@ -586,14 +476,22 @@ export default function AddMedication() {
         </div>
       )}
 
-      {/* ── AI SMART SCAN & DICTATION CONTAINER ───────────────── */}
+      {/* ── AI SCAN & DICTATION CONTAINER ───────────────── */}
       <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
         <div className="flex items-center gap-2">
+<<<<<<< HEAD
           <Sparkles className="text-blue-500" size={18} />
           <h2 className="font-bold text-slate-800 dark:text-white text-base">AI Smart Scan & Dictation</h2>
         </div>
         <p className="text-xs text-slate-500 leading-relaxed max-w-xl">
           Use your camera to scan a pill bottle label, tap the microphone to dictate, or type the name below. Our AI automatically extracts dosage, purpose, and schedules it for you!
+=======
+          <Sparkles size={16} className="text-indigo-500 animate-pulse" />
+          <h2 className="font-bold text-slate-900 dark:text-white text-sm">AI Scanner & Dictation</h2>
+        </div>
+        <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+          Skip manual typing! Upload a bottle image or speak naturally.
+>>>>>>> 73b60ac4b317d97962406503f2493d4929fefb59
         </p>
 
         {/* Text Modality Box */}
@@ -622,7 +520,7 @@ export default function AddMedication() {
             {uploadedImagePreview ? (
               <div className="flex flex-col items-center gap-2 w-full h-full justify-center">
                 <img src={uploadedImagePreview} alt="Uploaded bottle label" className="max-h-24 object-contain rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm" />
-                <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-500/20">Uploaded Successfully</span>
+                <span className="text-[15px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-500/20">Uploaded Successfully</span>
               </div>
             ) : (
               <>
@@ -668,12 +566,13 @@ export default function AddMedication() {
             {isScanningPhoto && (
               <div className="absolute inset-0 bg-white/90 dark:bg-slate-900/90 rounded-xl flex flex-col items-center justify-center gap-2">
                 <Activity size={18} className="text-blue-500 animate-spin" />
-                <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300">AI scanning {scannedFileName}...</span>
+                <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300">Be patient, we are scanning {scannedFileName}...</span>
               </div>
             )}
           </div>
 
           {/* Column B: Voice Input */}
+<<<<<<< HEAD
           <div className="border border-dashed border-slate-200 dark:border-slate-800 hover:border-blue-400/80 rounded-xl p-4 flex flex-col items-center justify-center text-center bg-slate-50/50 dark:bg-slate-950/20 transition-colors relative group min-h-[160px]">
             {isRecording ? (
               <>
@@ -703,6 +602,19 @@ export default function AddMedication() {
               </button>
             )}
             
+=======
+          <div className="border border-dashed border-slate-200 dark:border-slate-800 hover:border-blue-400/80 rounded-xl p-4 flex flex-col items-center justify-center text-center bg-slate-50/50 dark:bg-slate-950/20 transition-colors relative group">
+            <Mic size={24} className="text-slate-400 group-hover:text-blue-500 transition-colors mb-2" />
+            <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">Voice Dictation Input</span>
+            <span className="text-[12px] text-slate-800 mt-1">Click to speak dosage info</span>
+            {/* Quick Example Button */}
+            <button
+              onClick={handleExampleVoiceFlow}
+              className="mt-3 px-3 py-1.5 text-[12px] font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 text-blue-600 dark:text-blue-400 transition-all flex items-center gap-1.5"
+            >
+              <Mic size={11} /> Say: "I take magnesium 400mg every night."
+            </button>
+>>>>>>> 73b60ac4b317d97962406503f2493d4929fefb59
             {isListening && (
               <div className="absolute inset-0 bg-white/90 dark:bg-slate-900/90 rounded-xl flex flex-col items-center justify-center gap-2">
                 <div className="flex gap-1 items-center justify-center h-4">
@@ -711,7 +623,7 @@ export default function AddMedication() {
                   <div className="w-1 bg-blue-500 h-3 rounded animate-bounce" style={{ animationDelay: '0.3s' }} />
                   <div className="w-1 bg-blue-500 h-1 rounded animate-bounce" style={{ animationDelay: '0.4s' }} />
                 </div>
-                <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300">AI transcribing voice request...</span>
+                <span className="text-[12px] font-bold text-slate-600 dark:text-slate-300">AI transcribing voice request...</span>
               </div>
             )}
           </div>
@@ -835,49 +747,41 @@ export default function AddMedication() {
           {/* Purpose */}
           <div>
             <label className={labelClass}>Purpose / Indication</label>
-            <input type="text" name="purpose" value={formData.purpose}
-              onChange={handleInputChange} placeholder="e.g. Supplement, Hypertension, Vitamin"
-              className={inputClass}
-            />
+            {formData.purpose ? (
+              <div className="flex flex-wrap gap-1.5 p-3 bg-emerald-50/50 dark:bg-emerald-500/5 border border-emerald-200 dark:border-emerald-500/20 rounded-xl">
+                <span className="text-sm px-2.5 py-1 rounded-full font-semibold border bg-emerald-100 dark:bg-emerald-500/20 border-emerald-300 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-300">
+                  {formData.purpose}
+                </span>
+              </div>
+            ) : (
+              <div className="text-xs text-slate-400 italic p-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl">
+                Waiting for scan/dictation...
+              </div>
+            )}
           </div>
 
           {/* Notes */}
           <div>
             <label className={labelClass}>Clinical Recommendation</label>
-            <div className="relative">
-              <FileText className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-              <textarea name="notes" value={formData.notes}
-                onChange={handleInputChange}
-                placeholder="Take with food, monitor blood pressure weekly…"
-                rows={3}
-                className={`pl-9 resize-none ${inputClass}`}
-              />
-            </div>
+            {formData.notes ? (
+              <div className="p-3 bg-emerald-50/50 dark:bg-emerald-500/5 border border-emerald-200 dark:border-emerald-500/20 rounded-xl text-sm text-emerald-800 dark:text-emerald-300 leading-relaxed font-semibold">
+                {formData.notes}
+              </div>
+            ) : (
+              <div className="text-xs text-slate-400 italic p-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl">
+                Waiting for scan/dictation...
+              </div>
+            )}
           </div>
 
-          {/* AI Safety Check alerts */}
-          {safetyReport.status === 'alert' && safetyReport.details && (
-            <div className="p-4 bg-red-500/10 border border-red-500/25 rounded-xl space-y-2">
-              <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
-                <AlertOctagon size={16} className="animate-pulse" />
-                <span className="font-bold text-xs uppercase tracking-wider">ADE Interaction Warning</span>
-              </div>
-              <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
-                {safetyReport.details}
-              </p>
-            </div>
-          )}
 
-          {safetyReport.status !== 'unchecked' && safetyReport.sideEffects && safetyReport.sideEffects.length > 0 && (
+
+          {sideEffects && sideEffects.length > 0 && (
             <div className="space-y-1.5">
               <label className={labelClass}>Potential Side Effects</label>
               <div className="flex flex-wrap gap-1.5 p-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl">
-                {safetyReport.sideEffects.map(e => (
-                  <span key={e} className={`text-xs px-2.5 py-1 rounded-full font-semibold border ${
-                    safetyReport.status === 'alert'
-                      ? 'bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/20 text-red-600 dark:text-red-400'
-                      : 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/20 text-emerald-600 dark:text-emerald-400'
-                  }`}>
+                {sideEffects.map(e => (
+                  <span key={e} className="text-sm px-2.5 py-1 rounded-full font-semibold border bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/20 text-emerald-600 dark:text-emerald-400">
                     {e}
                   </span>
                 ))}
@@ -887,78 +791,37 @@ export default function AddMedication() {
 
           {/* Action Buttons */}
           <div className="space-y-3 pt-2">
-            <div className="flex flex-col sm:flex-row gap-3">
-              <button
-                type="button" onClick={runSafetyCheck}
-                disabled={!formData.name || loading || savedSuccess}
-                className="flex-1 py-3 px-4 font-bold text-sm text-white rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md shadow-blue-500/20 flex items-center justify-center gap-1.5"
-              >
-                {loading ? (
-                  <>
-                    <Activity size={15} className="animate-spin" />
-                    Checking Safety...
-                  </>
-                ) : '🔬 Check Interactions With Current Medications'}
-              </button>
-              <button
-                type="button" onClick={generateAISchedule}
-                disabled={!formData.name}
-                className="flex-1 py-3 px-4 font-bold text-sm text-indigo-600 dark:text-indigo-400 rounded-xl bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 border border-indigo-200 dark:border-indigo-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
-              >
-                <Sparkles size={15} /> Generate AI Schedule
-              </button>
-            </div>
-
             {/* Save and Reset Check (always visible inside profile details) */}
             <div className="flex flex-col sm:flex-row gap-3 border-t border-slate-100 dark:border-slate-800 pt-4 mt-2">
               <button
                 type="button"
                 onClick={handleSave}
                 disabled={!formData.name || loading || savedSuccess}
-                className={`flex-1 py-3 px-4 font-bold text-sm text-white rounded-xl transition-all shadow-md flex items-center justify-center gap-2 ${
-                  savedSuccess
-                    ? 'bg-emerald-600 shadow-emerald-500/20'
-                    : safetyReport.status === 'alert'
-                      ? 'bg-red-600 hover:bg-red-700 shadow-red-500/20'
-                      : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-500/20'
-                } disabled:opacity-50 disabled:cursor-not-allowed`}
+                className={`flex-1 py-3 px-4 font-bold text-sm text-white rounded-xl transition-all shadow-md flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 shadow-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed`}
               >
                 {savedSuccess ? (
                   <><CheckCircle2 size={16} /> Saved Successfully</>
                 ) : (
-                  safetyReport.status === 'alert' ? 'Override & Save to Dashboard' : 'Save to Dashboard'
+                  'Save to Dashboard'
                 )}
               </button>
               <button
                 type="button"
                 onClick={() => {
-                  setSafetyReport({ status: 'unchecked', riskLevel: 'Safe' });
                   setWhenToAvoid('');
                   setFoodInteractions('');
                   setSimplifiedExplanation('');
-                  setAiSchedule(null);
-                  setShowAiPanel(false);
+                  setSideEffects([]);
                 }}
-                disabled={safetyReport.status === 'unchecked' && !aiSchedule && !whenToAvoid}
+                disabled={!whenToAvoid && !foodInteractions && !simplifiedExplanation && sideEffects.length === 0}
                 className="px-5 py-3 font-bold text-sm rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Reset Check
+                Reset Form
               </button>
             </div>
           </div>
 
-          {/* AI Schedule Output */}
-          {showAiPanel && aiSchedule && (
-            <div className="mt-2 p-4 bg-indigo-50/60 dark:bg-indigo-500/5 border border-indigo-200 dark:border-indigo-500/20 rounded-xl space-y-2">
-              <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 mb-1">
-                <Sparkles size={14} />
-                <span className="text-xs font-bold uppercase tracking-wider">AI Suggested Schedule</span>
-              </div>
-              {aiSchedule.map((line, i) => (
-                <p key={i} className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">{line}</p>
-              ))}
-            </div>
-          )}
+
         </div>
       </div>
   )
