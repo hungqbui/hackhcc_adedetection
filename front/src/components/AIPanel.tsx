@@ -5,7 +5,6 @@ import { medeaseApi } from '../api'
 import type { MedicationAdvisingInfo } from '../api'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import AnimatedContent from './AnimatedContent'
 
 interface Message {
   id: string

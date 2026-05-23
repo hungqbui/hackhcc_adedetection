@@ -71,6 +71,7 @@ function mapBackendScheduleToDoses(
 
 export default function DailyPlanGenerator() {
   const [medications, setMedications] = useState<Medication[]>([])
+  const [selectedMedIds, setSelectedMedIds] = useState<string[]>([])
   const [wakeTime, setWakeTime] = useState('07:00')
   const [sleepTime, setSleepTime] = useState('22:30')
   const [breakfast, setBreakfast] = useState('07:30')
@@ -102,6 +103,7 @@ export default function DailyPlanGenerator() {
             times: res.reminder_times || []
           }))
           setMedications(mappedMeds)
+          setSelectedMedIds(mappedMeds.map(m => m.id))
           localStorage.setItem('medications', JSON.stringify(mappedMeds))
           return
         }
@@ -111,11 +113,21 @@ export default function DailyPlanGenerator() {
 
       const stored = localStorage.getItem('medications')
       if (stored) {
-        try { setMedications(JSON.parse(stored)) } catch {}
+        try {
+          const parsed = JSON.parse(stored)
+          setMedications(parsed)
+          setSelectedMedIds(parsed.map((m: any) => m.id))
+        } catch {}
       }
     }
     fetchLatestMeds()
   }, [])
+
+  const toggleMedSelection = (id: string) => {
+    setSelectedMedIds(prev =>
+      prev.includes(id) ? prev.filter(mId => mId !== id) : [...prev, id]
+    )
+  }
 
   const handleGenerate = async () => {
     setLoading(true)
@@ -125,9 +137,8 @@ export default function DailyPlanGenerator() {
         try { return JSON.parse(localStorage.getItem(takenKey) || '[]') } catch { return [] }
       })()
 
-      const medicationIds = medications.map(m => m.id)
       const backendSchedule = await medeaseApi.medications.generateSchedule(
-        medicationIds,
+        selectedMedIds,
         wakeTime,
         sleepTime,
         breakfast,
@@ -185,20 +196,36 @@ export default function DailyPlanGenerator() {
           <p className="text-sm text-slate-500 dark:text-slate-400 italic">No medications registered yet. Go to Add Medication to register some.</p>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {medications.map(med => (
-              <div key={med.id} className="p-3.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl flex items-start gap-3 hover:border-blue-500/30 transition-colors">
-                <div className="p-2 rounded-lg bg-blue-500/10 text-blue-500 mt-0.5">
-                  <Pill size={16} />
+            {medications.map(med => {
+              const isSelected = selectedMedIds.includes(med.id)
+              return (
+                <div
+                  key={med.id}
+                  onClick={() => toggleMedSelection(med.id)}
+                  className={`p-3.5 border rounded-xl flex items-start gap-3 cursor-pointer transition-all duration-200 ${
+                    isSelected
+                      ? 'bg-blue-50/45 dark:bg-blue-950/15 border-blue-500/40 shadow-sm shadow-blue-500/5'
+                      : 'bg-slate-50/50 dark:bg-slate-950/50 border-slate-200 dark:border-slate-800 opacity-60 hover:opacity-85'
+                  }`}
+                >
+                  <div className="flex items-center h-5 mt-0.5" onClick={e => e.stopPropagation()}>
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => toggleMedSelection(med.id)}
+                      className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 dark:bg-slate-950 dark:border-slate-800 cursor-pointer"
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-bold text-slate-900 dark:text-white text-sm">{med.name}</h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{med.dosage} — {med.frequency}</p>
+                    {med.notes && (
+                      <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1 italic line-clamp-1">{med.notes}</p>
+                    )}
+                  </div>
                 </div>
-                <div>
-                  <h3 className="font-bold text-slate-900 dark:text-white text-sm">{med.name}</h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{med.dosage} — {med.frequency}</p>
-                  {med.notes && (
-                    <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1 italic line-clamp-1">{med.notes}</p>
-                  )}
-                </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>
@@ -273,7 +300,7 @@ export default function DailyPlanGenerator() {
 
             <button
               onClick={handleGenerate}
-              disabled={medications.length === 0 || loading}
+              disabled={selectedMedIds.length === 0 || loading}
               className="w-full py-3 font-bold text-sm rounded-xl bg-blue-600 hover:bg-blue-700 text-white transition-all shadow-md shadow-blue-500/20 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? (
@@ -281,7 +308,13 @@ export default function DailyPlanGenerator() {
               ) : (
                 <Sparkles size={16} />
               )}
-              {loading ? 'Analyzing & Generating...' : medications.length === 0 ? 'No medications registered yet' : 'Generate My Schedule'}
+              {loading
+                ? 'Analyzing & Generating...'
+                : medications.length === 0
+                ? 'No medications registered yet'
+                : selectedMedIds.length === 0
+                ? 'Select at least one medication'
+                : 'Generate My Schedule'}
             </button>
           </div>
         )}

@@ -18,7 +18,7 @@ import {
   BookOpen
 } from 'lucide-react'
 import SpotlightCard from './react-bits/SpotlightCard'
-import StarBorder from './react-bits/StarBorder'
+import StarBorder from './StarBorder'
 import type { View } from '../App'
 import { medeaseApi } from '../api'
 
