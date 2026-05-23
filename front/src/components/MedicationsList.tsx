@@ -21,7 +21,7 @@ export default function MedicationsList({
           <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
             Active Medications & Supplements
           </h1>
-          <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
+          <p className="text-slate-700 dark:text-slate-400 text-sm mt-1">
             View, inspect, and manage all your registered prescriptions, over-the-counter drugs, and supplements.
           </p>
         </div>

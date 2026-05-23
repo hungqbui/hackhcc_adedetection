@@ -193,6 +193,23 @@ export default function DailyPlanGenerator({ onNavigate, onSchedulePersisted }: 
     setGeneratedDoses(updated)
     const takenIds = updated.filter(d => d.taken).map(d => d.id)
     localStorage.setItem(takenKey, JSON.stringify(takenIds))
+
+    const dose = generatedDoses.find(d => d.id === id)
+    if (dose) {
+      const willBeTaken = !dose.taken
+      const dateStr = takenKey.replace('taken_doses_', '')
+      const scheduledTime = `${dateStr}T${dose.time}:00`
+      medeaseApi.medications.logHistoryEntry({
+        medication_id: dose.medId || 'custom',
+        medication_name: dose.name,
+        dosage: dose.dosage,
+        scheduled_time: new Date(scheduledTime).toISOString(),
+        status: willBeTaken ? 'taken' : 'pending',
+        taken_at: willBeTaken ? new Date().toISOString() : null
+      }).catch(err => {
+        console.error("Failed to log history toggle on backend:", err)
+      })
+    }
   }
 
   const handleTimeChange = (id: string, newTime: string) => {

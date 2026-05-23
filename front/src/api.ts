@@ -52,6 +52,15 @@ export interface GeneratedMasterSchedule {
   general_advice: string;
 }
 
+export interface DailyActionPlanEntry {
+  medication_id: string;
+  medication_name: string;
+  dosage: string;
+  scheduled_time: string; // ISO datetime string
+  status: 'pending' | 'taken' | 'missed' | 'skipped';
+  taken_at?: string | null; // ISO datetime string
+}
+
 export interface ChatResponse {
   reply: string;
 }
@@ -241,6 +250,19 @@ export const medeaseApi = {
         method: 'PUT',
         body: JSON.stringify(times),
       });
+    },
+
+    // Log/upsert a DailyActionPlanEntry in history
+    logHistoryEntry: async (entry: DailyActionPlanEntry): Promise<DailyActionPlanEntry> => {
+      return apiRequest<DailyActionPlanEntry>('/medications/history', {
+        method: 'POST',
+        body: JSON.stringify(entry),
+      });
+    },
+
+    // Retrieve all DailyActionPlanEntry records for history calendar
+    getHistory: async (): Promise<DailyActionPlanEntry[]> => {
+      return apiRequest<DailyActionPlanEntry[]>('/medications/history');
     }
   },
 

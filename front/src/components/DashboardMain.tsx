@@ -297,6 +297,22 @@ export default function DashboardMain({ onNavigate, medications, onFetchMeds }: 
     setDoses(updated)
     const takenIds = updated.filter(d => d.taken).map(d => d.id)
     localStorage.setItem(todayKey, JSON.stringify(takenIds))
+
+    const dose = doses.find(d => d.id === doseId)
+    if (dose) {
+      const dateStr = todayKey.replace('taken_doses_', '')
+      const scheduledTime = `${dateStr}T${dose.time}:00`
+      medeaseApi.medications.logHistoryEntry({
+        medication_id: dose.medId || 'custom',
+        medication_name: dose.name,
+        dosage: dose.dosage,
+        scheduled_time: new Date(scheduledTime).toISOString(),
+        status: 'taken',
+        taken_at: new Date().toISOString()
+      }).catch(err => {
+        console.error("Failed to log history entry on backend:", err)
+      })
+    }
   }
 
   const takenCount = doses.filter(d => d.taken).length
@@ -325,7 +341,7 @@ export default function DashboardMain({ onNavigate, medications, onFetchMeds }: 
           <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight leading-tight">
             {todayLabel}
           </h1>
-          <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
+          <p className="text-slate-700 dark:text-slate-400 text-sm mt-1">
             Manage your medications and track daily adherence. Click any item for AI Medication Insights.
           </p>
         </div>
@@ -360,11 +376,11 @@ export default function DashboardMain({ onNavigate, medications, onFetchMeds }: 
             </span>
           </div>
           <div>
-            <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Medications Taken</p>
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">Medications Taken</p>
             <p className="text-3xl font-black text-slate-900 dark:text-white">
-              {takenCount} <span className="text-slate-400 font-medium text-xl">/ {totalCount}</span>
+              {takenCount} <span className="text-slate-500 font-medium text-xl">/ {totalCount}</span>
             </p>
-            <p className="text-xs text-slate-500 mt-1">
+            <p className="text-xs text-slate-700 mt-1">
               {missedCount > 0
                 ? <span className="text-red-500 font-semibold">{missedCount} missed dose{missedCount > 1 ? 's' : ''}</span>
                 : <span className="text-emerald-500 font-semibold">No missed doses</span>}
@@ -484,18 +500,18 @@ export default function DashboardMain({ onNavigate, medications, onFetchMeds }: 
                     >
                       <div className="flex items-start gap-3 min-w-0">
                         <div className="min-w-0 flex-1">
-                          <p className="text-xs font-bold text-slate-500 dark:text-slate-400">{dose.label}</p>
+                          <p className="text-xs font-bold text-slate-600 dark:text-slate-400">{dose.label}</p>
                           <p className="font-bold text-slate-900 dark:text-white text-base mt-0.5 flex flex-wrap items-center gap-1.5">
                             <span className="break-words">{dose.name}</span>
                             <span className="text-[9px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 px-1.5 py-0.5 rounded border border-blue-200 dark:border-blue-500/20 flex items-center gap-0.5 flex-shrink-0">
                               <Sparkles size={8} /> AI Insight
                             </span>
                           </p>
-                          <p className="text-xs text-slate-500 mt-0.5 break-words whitespace-normal">
+                          <p className="text-xs text-slate-700 dark:text-slate-400 mt-0.5 break-words whitespace-normal">
                             {dose.dosage} • <span className="font-semibold text-slate-600 dark:text-slate-400">{dose.purpose}</span>
                           </p>
                           {dose.instructions && (
-                            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">
+                            <p className="text-[11px] text-slate-700 dark:text-slate-400 mt-1.5 leading-relaxed">
                               💡 <span className="italic">{dose.instructions}</span>
                             </p>
                           )}

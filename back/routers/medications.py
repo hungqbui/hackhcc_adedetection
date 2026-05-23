@@ -9,8 +9,8 @@ from langchain_core.messages import HumanMessage
 from bson import ObjectId
 
 from auth import get_current_user
-from models import MedicationCreate, MedicationInDB, MedicationResponse, GenerateScheduleRequest, GeneratedMasterSchedule, SchedulePersistRequest, ScheduleResponse
-from database import medication_collection, schedule_collection
+from models import MedicationCreate, MedicationInDB, MedicationResponse, GenerateScheduleRequest, GeneratedMasterSchedule, SchedulePersistRequest, ScheduleResponse, DailyActionPlanEntry
+from database import medication_collection, schedule_collection, action_plan_collection
 
 router = APIRouter(prefix="/medications", tags=["medications"])
 
@@ -398,3 +398,39 @@ async def scan_medication(
         id=temp_id,
         created_at=now
     )
+
+@router.post("/history", response_model=DailyActionPlanEntry)
+async def log_action_plan_entry(
+    entry: DailyActionPlanEntry,
+    current_user: dict = Depends(get_current_user)
+):
+    doc = entry.model_dump()
+    doc["username"] = current_user["username"]
+    
+    await action_plan_collection.update_one(
+        {
+            "username": current_user["username"],
+            "medication_name": entry.medication_name,
+            "scheduled_time": entry.scheduled_time
+        },
+        {"$set": doc},
+        upsert=True
+    )
+    return entry
+
+@router.get("/history", response_model=List[DailyActionPlanEntry])
+async def get_action_plan_history(
+    current_user: dict = Depends(get_current_user)
+):
+    cursor = action_plan_collection.find({"username": current_user["username"]})
+    entries = []
+    async for doc in cursor:
+        entries.append(DailyActionPlanEntry(
+            medication_id=doc.get("medication_id", ""),
+            medication_name=doc.get("medication_name", ""),
+            dosage=doc.get("dosage", ""),
+            scheduled_time=doc.get("scheduled_time"),
+            status=doc.get("status", "pending"),
+            taken_at=doc.get("taken_at")
+        ))
+    return entries
