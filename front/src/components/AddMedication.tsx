@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useRef } from 'react'
 import {
   Pill,
   Calendar,
@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   AlertOctagon,
   ShieldCheck,
+  Search,
   Mic,
   MicOff,
   Plus,
@@ -16,7 +17,8 @@ import {
   Clock,
   Upload,
   FileImage,
-  AlertCircle
+  AlertCircle,
+  Square
 } from 'lucide-react'
 import ElectricBorder from './react-bits/ElectricBorder'
 import { medeaseApi } from '../api'
@@ -107,6 +109,12 @@ export default function AddMedication() {
   const [showAiPanel, setShowAiPanel] = useState(false)
   const [savedSuccess, setSavedSuccess] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  
+  // Voice & Modality state
+  const [isRecording, setIsRecording] = useState(false)
+  const [textScanInput, setTextScanInput] = useState('')
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const audioChunksRef = useRef<BlobPart[]>([])
   const [safetyReport, setSafetyReport] = useState<{
     status: 'unchecked' | 'safe' | 'alert'
     riskLevel: 'Safe' | 'Moderate' | 'High'
@@ -118,6 +126,39 @@ export default function AddMedication() {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target
     setFormData(prev => ({ ...prev, [name]: value }))
+  }
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const recorder = new MediaRecorder(stream)
+      mediaRecorderRef.current = recorder
+      audioChunksRef.current = []
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data)
+      }
+
+      recorder.onstop = async () => {
+        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
+        const file = new File([blob], 'voice_dictation.webm', { type: 'audio/webm' })
+        stream.getTracks().forEach(track => track.stop())
+        await processAudioScan(file)
+      }
+
+      recorder.start()
+      setIsRecording(true)
+    } catch (err) {
+      console.error('Microphone access denied:', err)
+      setErrorMsg("Could not access microphone.")
+    }
+  }
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop()
+      setIsRecording(false)
+    }
   }
 
   // Simulate basic voice input for simple micro button
@@ -257,6 +298,59 @@ export default function AddMedication() {
   }
 
   // Real Voice Dictation Call to Backend medications.py scan endpoint
+  const processAudioScan = async (file: File) => {
+    setIsListening(true)
+    setErrorMsg(null)
+    try {
+      const res = await medeaseApi.medications.scan(null, undefined, file)
+      
+      setFormData(prev => ({
+        ...prev,
+        name: res.name,
+        dosage: res.dosage || '400mg',
+        purpose: res.purpose || 'Supplement',
+        notes: res.special_instructions || 'Extracted via AI Voice Recording.',
+        frequency: res.frequency.toLowerCase().includes('custom') ? 'custom' : 'daily'
+      }))
+
+      if (res.reminder_times && res.reminder_times.length > 0) {
+        setTimes(res.reminder_times)
+      } else {
+        setTimes(['21:00'])
+      }
+
+      setWhenToAvoid(res.when_to_avoid || '')
+      setFoodInteractions(res.interactions_to_avoid?.join(', ') || '')
+      setSimplifiedExplanation(res.simplified_explanation || '')
+
+      const sideEffects = res.side_effects && res.side_effects.length > 0 
+        ? res.side_effects 
+        : (res.interactions_to_avoid && res.interactions_to_avoid.length > 0 ? ['Stomach discomfort', 'Mild diarrhea'] : ['Dry mouth', 'Mild drowsiness'])
+
+      if (res.interactions_to_avoid && res.interactions_to_avoid.length > 0) {
+        setSafetyReport({
+          status: 'alert',
+          riskLevel: 'High',
+          details: `Adverse drug / food warning labels: ${res.interactions_to_avoid.join(', ')}`,
+          recommendation: res.special_instructions || "Consult your provider regarding these interactions.",
+          sideEffects: sideEffects
+        })
+      } else {
+        setSafetyReport({
+          status: 'safe',
+          riskLevel: 'Safe',
+          sideEffects: sideEffects
+        })
+      }
+    } catch (err: any) {
+      console.error('Voice transcription failed:', err)
+      setErrorMsg('Failed to process voice dictation.')
+    } finally {
+      setIsListening(false)
+    }
+  }
+
+  // Real Voice Dictation Call to Backend medications.py scan endpoint using a test string
   const handleExampleVoiceFlow = async () => {
     setIsListening(true)
     setErrorMsg(null)
@@ -303,22 +397,64 @@ export default function AddMedication() {
         })
       }
     } catch (err: any) {
-      console.error('Voice transcription failed. Falling back to simulation mode:', err)
-      // Fallback offline mock values
-      const name = 'Magnesium'
+      console.error('Voice transcription failed:', err)
+      setErrorMsg('Failed to process example voice dictation.')
+    } finally {
+      setIsListening(false)
+    }
+  }
+
+  const processTextScan = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!textScanInput.trim()) return
+
+    setIsListening(true)
+    setErrorMsg(null)
+    try {
+      const res = await medeaseApi.medications.scan(null, textScanInput, null)
+      
       setFormData(prev => ({
         ...prev,
-        name,
-        dosage: '400mg',
-        purpose: 'Supplement',
-        notes: 'Failed to contact backend. Using local offline voice transcription.',
-        frequency: 'daily'
+        name: res.name,
+        dosage: res.dosage || '400mg',
+        purpose: res.purpose || 'Supplement',
+        notes: res.special_instructions || 'Extracted via AI Text Search.',
+        frequency: res.frequency.toLowerCase().includes('custom') ? 'custom' : 'daily'
       }))
-      setTimes(['21:00'])
-      setWhenToAvoid('')
-      setFoodInteractions('')
-      setSimplifiedExplanation('')
-      performSafetyCheck(name)
+
+      if (res.reminder_times && res.reminder_times.length > 0) {
+        setTimes(res.reminder_times)
+      } else {
+        setTimes(['21:00'])
+      }
+
+      setWhenToAvoid(res.when_to_avoid || '')
+      setFoodInteractions(res.interactions_to_avoid?.join(', ') || '')
+      setSimplifiedExplanation(res.simplified_explanation || '')
+
+      const sideEffects = res.side_effects && res.side_effects.length > 0 
+        ? res.side_effects 
+        : (res.interactions_to_avoid && res.interactions_to_avoid.length > 0 ? ['Stomach discomfort', 'Mild diarrhea'] : ['Dry mouth', 'Mild drowsiness'])
+
+      if (res.interactions_to_avoid && res.interactions_to_avoid.length > 0) {
+        setSafetyReport({
+          status: 'alert',
+          riskLevel: 'High',
+          details: `Adverse drug / food warning labels: ${res.interactions_to_avoid.join(', ')}`,
+          recommendation: res.special_instructions || "Consult your provider regarding these interactions.",
+          sideEffects: sideEffects
+        })
+      } else {
+        setSafetyReport({
+          status: 'safe',
+          riskLevel: 'Safe',
+          sideEffects: sideEffects
+        })
+      }
+      setTextScanInput('')
+    } catch (err: any) {
+      console.error('Text scan failed:', err)
+      setErrorMsg('Failed to process text search.')
     } finally {
       setIsListening(false)
     }
@@ -453,12 +589,32 @@ export default function AddMedication() {
       {/* ── AI SMART SCAN & DICTATION CONTAINER ───────────────── */}
       <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
         <div className="flex items-center gap-2">
-          <Sparkles size={16} className="text-indigo-500 animate-pulse" />
-          <h2 className="font-bold text-slate-900 dark:text-white text-sm">AI Smart Scanner & Dictation</h2>
+          <Sparkles className="text-blue-500" size={18} />
+          <h2 className="font-bold text-slate-800 dark:text-white text-base">AI Smart Scan & Dictation</h2>
         </div>
-        <p className="text-xs text-slate-400 leading-relaxed">
-          Skip manual typing! Upload a bottle image or speak naturally. Try the interactive example flows below.
+        <p className="text-xs text-slate-500 leading-relaxed max-w-xl">
+          Use your camera to scan a pill bottle label, tap the microphone to dictate, or type the name below. Our AI automatically extracts dosage, purpose, and schedules it for you!
         </p>
+
+        {/* Text Modality Box */}
+        <form onSubmit={processTextScan} className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+          <input
+            type="text"
+            value={textScanInput}
+            onChange={(e) => setTextScanInput(e.target.value)}
+            placeholder="Type drug name or instructions (e.g. 'Magnesium 400mg daily')"
+            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl pl-9 pr-24 py-2.5 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+            disabled={isListening || isScanningPhoto}
+          />
+          <button
+            type="submit"
+            disabled={!textScanInput.trim() || isListening || isScanningPhoto}
+            className="absolute right-1.5 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg disabled:opacity-50 transition-colors"
+          >
+            Auto-Fill
+          </button>
+        </form>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
           {/* Column A: Photo Label Scanner */}
@@ -518,17 +674,35 @@ export default function AddMedication() {
           </div>
 
           {/* Column B: Voice Input */}
-          <div className="border border-dashed border-slate-200 dark:border-slate-800 hover:border-blue-400/80 rounded-xl p-4 flex flex-col items-center justify-center text-center bg-slate-50/50 dark:bg-slate-950/20 transition-colors relative group">
-            <Mic size={24} className="text-slate-400 group-hover:text-blue-500 transition-colors mb-2" />
-            <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Voice Dictation Input</span>
-            <span className="text-[10px] text-slate-400 mt-1">Click to speak dosage info</span>
+          <div className="border border-dashed border-slate-200 dark:border-slate-800 hover:border-blue-400/80 rounded-xl p-4 flex flex-col items-center justify-center text-center bg-slate-50/50 dark:bg-slate-950/20 transition-colors relative group min-h-[160px]">
+            {isRecording ? (
+              <>
+                <button onClick={stopRecording} className="text-red-500 hover:text-red-600 transition-colors mb-2 animate-pulse">
+                  <Square size={24} fill="currentColor" />
+                </button>
+                <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Recording audio...</span>
+                <span className="text-[10px] text-slate-400 mt-1">Tap to stop</span>
+              </>
+            ) : (
+              <>
+                <button onClick={startRecording} className="text-slate-400 hover:text-blue-500 transition-colors mb-2">
+                  <Mic size={24} />
+                </button>
+                <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Voice Dictation Input</span>
+                <span className="text-[10px] text-slate-400 mt-1">Click mic to record your dosage</span>
+              </>
+            )}
+            
             {/* Quick Example Button */}
-            <button
-              onClick={handleExampleVoiceFlow}
-              className="mt-3 px-3 py-1.5 text-[10px] font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 text-blue-600 dark:text-blue-400 transition-all flex items-center gap-1.5"
-            >
-              <Mic size={11} /> Say: "I take magnesium 400mg every night."
-            </button>
+            {!isRecording && !isListening && (
+              <button
+                onClick={handleExampleVoiceFlow}
+                className="mt-3 px-3 py-1.5 text-[10px] font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 text-blue-600 dark:text-blue-400 transition-all flex items-center gap-1.5"
+              >
+                <Mic size={11} /> Say: "I take magnesium 400mg every night."
+              </button>
+            )}
+            
             {isListening && (
               <div className="absolute inset-0 bg-white/90 dark:bg-slate-900/90 rounded-xl flex flex-col items-center justify-center gap-2">
                 <div className="flex gap-1 items-center justify-center h-4">

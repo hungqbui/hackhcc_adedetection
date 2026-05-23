@@ -59,21 +59,17 @@ const ExpandableMedications = ({ meds }: { meds: MedicationAdvisingInfo[] }) => 
           {expanded && (
             <div className="p-2 space-y-1.5">
               {meds.map((med, i) => (
-                <AnimatedContent 
-                  key={med.id} 
-                  delay={i * 0.05} 
-                  distance={10} 
-                  direction="vertical"
-                  duration={0.3}
+                <div
+                  key={med.id}
+                  className="bg-white dark:bg-slate-800 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col gap-1 animate-in fade-in slide-in-from-bottom-2 duration-300"
+                  style={{ animationFillMode: 'both', animationDelay: `${i * 100}ms` }}
                 >
-                  <div className="bg-white dark:bg-slate-800 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col gap-1">
-                    <div className="flex justify-between items-start">
-                      <p className="text-[11px] font-bold text-slate-800 dark:text-white leading-tight">{med.name} <span className="text-slate-500 font-normal">({med.dosage})</span></p>
-                      <span className="text-[9px] bg-indigo-100 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded ml-2 whitespace-nowrap">{(med.similarity * 100).toFixed(1)}% match</span>
-                    </div>
-                    <p className="text-[10px] text-slate-500 line-clamp-2 leading-snug">{med.purpose}</p>
+                  <div className="flex justify-between items-start">
+                    <p className="text-[11px] font-bold text-slate-800 dark:text-white leading-tight">{med.name} <span className="text-slate-500 font-normal">({med.dosage})</span></p>
+                    <span className="text-[9px] bg-indigo-100 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded ml-2 whitespace-nowrap">{(med.similarity * 100).toFixed(1)}% match</span>
                   </div>
-                </AnimatedContent>
+                  <p className="text-[10px] text-slate-500 line-clamp-2 leading-snug">{med.purpose}</p>
+                </div>
               ))}
             </div>
           )}
@@ -252,10 +248,14 @@ export default function AIPanel({ mobileMode = false, currentView = 'dashboard' 
 
       {/* Messages */}
       <div className="flex-1 px-4 py-3 overflow-y-auto space-y-3">
-        {messages.map(msg => {
+        {messages.map((msg, i) => {
           const isAi = msg.sender === 'ai'
           return (
-            <div key={msg.id} className={`flex flex-col ${isAi ? '' : 'items-end'}`}>
+            <div
+              key={msg.id}
+              className={`flex flex-col animate-in fade-in slide-in-from-bottom-2 duration-300 ${isAi ? '' : 'items-end'}`}
+              style={{ animationFillMode: 'both' }}
+            >
               <div className={`max-w-[88%] px-3.5 py-2.5 rounded-2xl text-xs leading-relaxed border ${
                 isAi
                   ? riskStyle(msg.riskLevel)
@@ -317,11 +317,23 @@ export default function AIPanel({ mobileMode = false, currentView = 'dashboard' 
 
       {/* Input */}
       {selectedImage && (
-        <div className="px-4 py-2 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-          <span className="text-xs text-slate-600 dark:text-slate-300 truncate max-w-[200px]">
-            {selectedImage.name}
-          </span>
-          <button onClick={() => setSelectedImage(null)} className="text-slate-400 hover:text-red-500">
+        <div className="px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="relative w-10 h-10 rounded-md border border-slate-200 dark:border-slate-700 overflow-hidden bg-slate-100 dark:bg-slate-900 shadow-sm flex-shrink-0">
+              <img src={URL.createObjectURL(selectedImage)} alt="Preview" className="w-full h-full object-cover" />
+            </div>
+            <div className="flex flex-col min-w-0">
+              <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate max-w-[180px]">
+                {selectedImage.name}
+              </span>
+              <span className="text-[10px] text-slate-400">Image attached</span>
+            </div>
+          </div>
+          <button 
+            onClick={() => setSelectedImage(null)} 
+            className="p-1.5 text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-red-500 rounded-lg transition-colors"
+            title="Remove image"
+          >
             <X size={14} />
           </button>
         </div>
@@ -347,7 +359,22 @@ export default function AIPanel({ mobileMode = false, currentView = 'dashboard' 
         />
         <input
           type="text" value={input} onChange={e => setInput(e.target.value)}
-          placeholder="Ask about drugs, interactions…"
+          onPaste={e => {
+            const items = e.clipboardData?.items;
+            if (items) {
+              for (let i = 0; i < items.length; i++) {
+                if (items[i].type.indexOf('image') !== -1) {
+                  const blob = items[i].getAsFile();
+                  if (blob) {
+                    setSelectedImage(blob);
+                    // Do not prevent default so they can still paste text simultaneously if it was mixed (though usually it's one or the other)
+                    break;
+                  }
+                }
+              }
+            }
+          }}
+          placeholder="Ask about drugs, interactions… (You can also paste images)"
           className="flex-1 min-w-0 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-400/40"
         />
         <button
