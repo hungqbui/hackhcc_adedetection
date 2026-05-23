@@ -1,7 +1,8 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List
 from datetime import datetime
 from enum import Enum
+
 
 class UserCreate(BaseModel):
     username: str = Field(..., min_length=3, max_length=50)
@@ -50,7 +51,55 @@ class MedicationBase(BaseModel):
     with_food: bool = Field(False, description="Whether it must be taken with food")
     interactions_to_avoid: List[str] = Field(default_factory=list, description="Known drug/food interactions to avoid")
     special_instructions: Optional[str] = Field(None, description="E.g., 'Take with a full glass of water'")
+    side_effects: List[str] = Field(default_factory=list, description="Common side effects of this medication")
+    when_to_avoid: Optional[str] = Field(None, description="When to avoid taking this medication (contraindications)")
+    simplified_explanation: Optional[str] = Field(None, description="A simplified, patient-friendly explanation of what the drug is and does")
     rxcui: Optional[List[str]] = Field(default_factory=list, description="RxNorm Concept Unique Identifiers (RxCUIs) associated with this medication")
+
+    @field_validator("type", mode="before")
+    @classmethod
+    def validate_type(cls, v):
+        if not v:
+            return MedicationType.OTHER
+        if isinstance(v, str):
+            val = v.lower().strip().replace(" ", "_").replace("-", "_")
+            if val in ["prescription", "rx", "prescribed"]:
+                return MedicationType.PRESCRIPTION
+            elif val in ["supplement", "vitamin", "vitamins", "mineral", "supplemental"]:
+                return MedicationType.SUPPLEMENT
+            elif val in ["over_the_counter", "otc", "over-the-counter"]:
+                return MedicationType.OTC
+            # Direct check if value exists in enum
+            for e in MedicationType:
+                if val == e.value:
+                    return e
+        return MedicationType.OTHER
+
+    @field_validator("optimal_time", mode="before")
+    @classmethod
+    def validate_optimal_time(cls, v):
+        if not v:
+            return []
+        if isinstance(v, str):
+            v = [v]
+        validated = []
+        for item in v:
+            if isinstance(item, str):
+                val = item.lower().strip().replace(" ", "_").replace("-", "_")
+                if val in ["morning", "afternoon", "evening", "night", "as_needed"]:
+                    validated.append(TimeOfDay(val))
+                elif "morning" in val:
+                    validated.append(TimeOfDay.MORNING)
+                elif "afternoon" in val:
+                    validated.append(TimeOfDay.AFTERNOON)
+                elif "evening" in val:
+                    validated.append(TimeOfDay.EVENING)
+                elif "night" in val or "bed" in val:
+                    validated.append(TimeOfDay.NIGHT)
+                elif "need" in val:
+                    validated.append(TimeOfDay.AS_NEEDED)
+        return list(set(validated))
+
 
 class MedicationCreate(MedicationBase):
     pass

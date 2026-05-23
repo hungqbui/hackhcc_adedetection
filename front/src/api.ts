@@ -15,7 +15,8 @@ export const removeAuthToken = () => localStorage.removeItem('medease_token');
 // ==========================================
 // Type Definitions matching FastAPI schemas
 // ==========================================
-export type MedicationType = 'morning' | 'afternoon' | 'evening' | 'night' | 'as_needed';
+export type MedicationType = 'prescription' | 'supplement' | 'over_the_counter' | 'other';
+export type TimeOfDay = 'morning' | 'afternoon' | 'evening' | 'night' | 'as_needed';
 
 export interface MedicationBase {
   name: string;
@@ -23,11 +24,14 @@ export interface MedicationBase {
   type: MedicationType;
   dosage: string;
   frequency: string;
-  optimal_time?: string[];
+  optimal_time?: TimeOfDay[];
   reminder_times?: string[];
   with_food?: boolean;
   interactions_to_avoid?: string[];
   special_instructions?: string;
+  side_effects?: string[];
+  when_to_avoid?: string;
+  simplified_explanation?: string;
   rxcui?: string[];
 }
 
@@ -161,6 +165,26 @@ export const medeaseApi = {
       return apiRequest<MedicationResponse>('/medications/scan', {
         method: 'POST',
         body: formData,
+      });
+    },
+
+    // Save a medication permanently to MongoDB
+    create: async (medication: MedicationBase): Promise<MedicationResponse> => {
+      return apiRequest<MedicationResponse>('/medications/', {
+        method: 'POST',
+        body: JSON.stringify(medication),
+      });
+    },
+
+    // List all user medications from MongoDB
+    list: async (): Promise<MedicationResponse[]> => {
+      return apiRequest<MedicationResponse[]>('/medications/');
+    },
+
+    // Delete a medication from MongoDB
+    delete: async (medicationId: string): Promise<{ status: string; message: string }> => {
+      return apiRequest<{ status: string; message: string }>(`/medications/${medicationId}`, {
+        method: 'DELETE',
       });
     },
 
