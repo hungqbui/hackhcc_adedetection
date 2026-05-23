@@ -158,8 +158,8 @@ async def chat_advising(
             
             missed = []
             for med in meds:
-                reminder_times = med.get("reminder_times", [])
-                for t in reminder_times:
+                times = med.get("optimal_time") or med.get("reminder_times") or []
+                for t in times:
                     if t < current_time_str:
                         missed.append(f"- {med.get('name')} ({med.get('dosage')}) scheduled at {t}")
                         
