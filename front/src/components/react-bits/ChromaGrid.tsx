@@ -1,5 +1,3 @@
-import React from 'react';
-
 type ChromaGridProps = {
   className?: string;
   columns?: number;

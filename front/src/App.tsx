@@ -42,31 +42,6 @@ export interface Medication {
   simplifiedExplanation?: string
 }
 
-const DEFAULT_MEDICATIONS: Medication[] = [
-  {
-    id: '1', name: 'Lisinopril', dosage: '10mg', frequency: 'Once daily (Morning)',
-    purpose: 'Hypertension', startDate: '2026-01-15', riskLevel: 'Safe',
-    sideEffects: ['Dry cough', 'Dizziness']
-  },
-  {
-    id: '2', name: 'Aspirin', dosage: '81mg', frequency: 'Once daily (Morning)',
-    purpose: 'Cardioprotection', startDate: '2026-02-10', riskLevel: 'High',
-    sideEffects: ['Stomach irritation', 'Easy bruising'],
-    notes: 'Interact warning: Co-administration with Ibuprofen increases gastrointestinal bleeding risks.'
-  },
-  {
-    id: '3', name: 'Ibuprofen', dosage: '400mg', frequency: 'Every 8 hours as needed',
-    purpose: 'Joint Pain', startDate: '2026-05-01', riskLevel: 'High',
-    sideEffects: ['Stomach ache', 'Nausea'],
-    notes: 'Interact warning: May reduce cardioprotective effect of low-dose Aspirin.'
-  },
-  {
-    id: '4', name: 'Metformin', dosage: '500mg', frequency: 'Twice daily (Morning/Evening)',
-    purpose: 'Type 2 Diabetes', startDate: '2026-03-01', riskLevel: 'Safe',
-    sideEffects: ['Nausea', 'Metabolism changes']
-  }
-]
-
 function App() {
   const [user, setUser] = useState<UserSession | null>(null)
   const [showLogin, setShowLogin] = useState(false)
@@ -117,9 +92,9 @@ function App() {
     const stored = localStorage.getItem('medications')
     let meds: Medication[]
     try {
-      meds = stored ? JSON.parse(stored) : DEFAULT_MEDICATIONS
+      meds = stored ? JSON.parse(stored) : []
     } catch {
-      meds = DEFAULT_MEDICATIONS
+      meds = []
     }
     if (!stored) localStorage.setItem('medications', JSON.stringify(meds))
     setMedications(meds)
